@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code working notes -- local only, never pushed
+CLAUDE.md
