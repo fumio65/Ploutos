@@ -23,6 +23,7 @@
 | Packaging | Capacitor | Converts the web app into iOS/Android shells |
 | AI | LLM via Supabase Edge Function (tool-calling pattern) | Keeps API keys server-side; online-only by design |
 | Charts | recharts (v3) | Spending-by-category + income/expense trend reports (T017); React 19-compatible |
+| Capacitor core | `@capacitor/core` | Added T018 to make `Capacitor.isNativePlatform()` callable from `SignInPage`; no Android/iOS platforms or plugins installed yet — see "Google sign-in" below |
 
 ## System Overview (text diagram)
 
@@ -80,6 +81,10 @@ Confirmed. Displayed as an optional toggle view separate from the default wallet
 
 ### Recurring Transactions
 - A template (amount, category, account, frequency) that generates real transaction records on schedule
+
+## Google Sign-In: Web vs Native
+- Web: `supabase.auth.signInWithOAuth({ provider: 'google', ... })` — a browser redirect round-trip. Unchanged, in `src/pages/SignInPage.tsx`.
+- Native (Capacitor build, not yet set up): `SignInPage` branches on `Capacitor.isNativePlatform()` and calls `signInWithGoogleNative()` (`src/lib/nativeAuth.ts`), which documents the eventual flow (native Google Sign-In plugin → ID token → `supabase.auth.signInWithIdToken(...)`) and throws until that plugin and the Capacitor Android/iOS projects actually exist. Added as a prep step (T018) — see DECISIONS.md.
 
 ## Key Design Patterns
 - **Feature-based architecture**: organize code by feature (accounts, transactions, budgets, goals, debts, ai-insights) rather than by technical layer

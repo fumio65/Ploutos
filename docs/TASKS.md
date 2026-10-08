@@ -9,15 +9,26 @@
 
 ## Sprint Backlog
 
-_Empty — T017 (Reports/charts) and a Net-Worth fix just completed. Pick the next item from "Up Next" below._
+_Empty — T018 (native Google sign-in prep) just completed. Pick the next item from "Up Next" below._
 
 ---
 
 ## Up Next (not in this sprint)
-- Native Google sign-in flow for Capacitor build
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T018 — Native Google sign-in branching prep (Capacitor build) ✅
+- **Completed:** 2026-10-08
+- **Context:** this backlog item's original wording ("native Google sign-in flow for Capacitor build") presupposes a Capacitor project that doesn't exist yet in this repo — no `@capacitor/core` dependency, no `ios`/`android` folders, no `capacitor.config.*`. Scoped down with the user to prep-only: add the platform branch point and a documented stub now, leave the actual native plugin/project setup (which needs Android Studio/Xcode on the user's own machine) for later.
+- **Outcome:** `src/pages/SignInPage.tsx`'s `signInWithGoogle` now branches on `Capacitor.isNativePlatform()`. The existing web flow (`supabase.auth.signInWithOAuth` redirect) is unchanged in the `else` branch. The native branch calls a new `signInWithGoogleNative()` stub (`src/lib/nativeAuth.ts`) that documents the eventual flow (native plugin → ID token → `supabase.auth.signInWithIdToken(...)`) and throws a clear "not implemented yet" error if it's ever actually invoked, since no native plugin exists yet to call. Added `@capacitor/core` as a dependency so `Capacitor.isNativePlatform()` is callable; it always returns `false` in a plain web browser, so this branch is unreachable today and the live web sign-in flow is unaffected.
+- **Key implementation choices:**
+  - Kept the stub's documentation inline in `nativeAuth.ts` (which plugin call, which Supabase method, in what order) rather than just a TODO, so whoever picks up the real Capacitor/Android/iOS setup later has the exact contract to implement against instead of re-deriving it.
+  - A caught error from the native stub surfaces as a small inline error message on `SignInPage` rather than an unhandled rejection, so a future native build that calls this before the real plugin is wired up fails visibly instead of silently.
+  - Did not install Capacitor's CLI, Android/iOS platforms, or any native Google Sign-In plugin — this task is deliberately just the branch point, per the user's "just prep the code now" scoping decision.
+- **Verified before touching the device:** `npx tsc -b --noEmit` and `npm run build` both clean in a disposable cloud-container build. Playwright confirmed the SignInPage still renders with the "Sign in with Google" button in a plain web context, `window.Capacitor.isNativePlatform()` reports `false` there, and clicking the button does not trigger the native stub's error path (no error banner, no matching console error) — i.e. the web flow is provably unaffected by the new branch.
+- **Files:** `src/pages/SignInPage.tsx`, `src/lib/nativeAuth.ts` (new), `package.json`/`package-lock.json` (new `@capacitor/core` dependency).
+- **Branch:** `feature/t018-native-google-signin-prep`
 
 ### T016 — Debt/receivable tracking UI ✅
 - **Completed:** 2026-10-08
@@ -300,3 +311,4 @@ _Empty — T017 (Reports/charts) and a Net-Worth fix just completed. Pick the ne
 - 2026-10-08: T016-fix completed -- Transactions list was showing debt/receivable repayments as a bare "Uncategorized" (correct, since those deliberately have no category_id, but confusing to read). User reported it after testing T016 on device; chose "show a smarter label" when asked. TransactionsPage.tsx now shows "Debt repayment: <counterparty>" / "Collected: <counterparty>" for those, falling back to "Uncategorized" only otherwise. Verified in a disposable cloud container, committed on the same T016 branch.
 - 2026-10-08: T017 completed -- Reports screen (src/pages/ReportsPage.tsx): spending-by-category pie chart (period-selectable) + a fixed last-6-months income/expense bar chart, both split per currency. First use of a charting library (recharts) in the project. Verified in a disposable cloud container plus a full production `npm run build` on the device. Remaining backlog: native Google sign-in for the Capacitor build, or AI Q&A (v2) -- whichever the user picks next.
 - 2026-10-08: T017-fix completed -- Net Worth on the Dashboard was only summing accounts + goals, missing debts/receivables entirely even though ARCHITECTURE.md/DECISIONS.md define it as accounts + goals + receivables - debts. Found while syncing docs per the new CLAUDE.md "Documentation sync" rule, not reported by the user. Fixed DashboardPage.tsx to include remaining_amount across debts (subtracted) and receivables (added); card now shows whenever a goal, debt, or receivable exists. Verified in a disposable cloud container.
+- 2026-10-08: T018 completed — prepped native Google sign-in branching for the eventual Capacitor build. Added `@capacitor/core`, branched `SignInPage`'s sign-in handler on `Capacitor.isNativePlatform()`, and added a documented `signInWithGoogleNative()` stub (throws until a real native plugin exists). No Capacitor project/native platforms set up yet -- deliberately prep-only, per the user's scoping choice. Verified the web sign-in flow is unaffected (Playwright, disposable cloud-container build) before transferring to the device.

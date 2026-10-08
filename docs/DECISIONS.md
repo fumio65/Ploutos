@@ -21,4 +21,4 @@
 | Net Worth = accounts + goals + receivables − debts | Matches user's requested definition | Confirmed |
 | Multi-currency without conversion | Avoids exchange-rate infrastructure in v1; currencies tracked independently | Confirmed |
 | AI Q&A is online-only, tool-calling (not raw SQL generation) | Avoids local model complexity; avoids letting LLM generate arbitrary SQL against financial data | Confirmed direction, not yet implemented |
-| Google sign-in needs a different flow on native (plugin-based) vs web (redirect-based) | WebView OAuth redirects are increasingly restricted by Google | Noted, not yet implemented |
+| Google sign-in needs a different flow on native (plugin-based) vs web (redirect-based) | WebView OAuth redirects are increasingly restricted by Google | **Branch point scaffolded (T018, 2026-10-08)** — `SignInPage` branches on `Capacitor.isNativePlatform()`; the native side is a documented stub (`src/lib/nativeAuth.ts`) that throws until a real plugin is chosen and Capacitor itself is set up. Not yet implemented. |
