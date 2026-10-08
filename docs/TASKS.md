@@ -9,12 +9,11 @@
 
 ## Sprint Backlog
 
-_Empty — T016 (Debt/receivable tracking UI) and its Transactions-label fix just completed. Pick the next item from "Up Next" below._
+_Empty — T017 (Reports/charts) just completed. Pick the next item from "Up Next" below._
 
 ---
 
 ## Up Next (not in this sprint)
-- Reports/charts
 - Native Google sign-in flow for Capacitor build
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
@@ -31,6 +30,19 @@ _Empty — T016 (Debt/receivable tracking UI) and its Transactions-label fix jus
 - **Verified before touching the device:** full create/pay/collect flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Created a debt and a receivable, recorded a partial payment and a full collection, confirmed each landed as the correct transaction type linked via `debt_id`/`receivable_id`; since the trigger itself can't run with Supabase blocked, directly wrote the trigger's expected post-sync state into Dexie and confirmed the list reacted live (remaining amount updated, then the debt moved from Active to Settled with zero interaction).
 - **Files:** `src/pages/DebtsPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Debts" nav item/route).
 - **Branch:** `feature/t016-debt-receivable-tracking`
+
+### T017 — Reports/charts ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/pages/ReportsPage.tsx` (reachable from More → Reports), per PRD item 10 ("spending by category, trends over time"). Two report widgets: a period-selectable (this month / last 3 months / last 6 months / this year) spending-by-category pie chart with an amount+percentage list below it, and a fixed last-6-months income-vs-expense bar chart.
+- **Key implementation choices:**
+  - Added `recharts` (v3, React 19-compatible) as the first charting dependency in the project — nothing existing pulled in a chart library yet.
+  - Both reports split their data **per currency** before rendering (`groupByCurrency()`), the same reasoning the Dashboard's `sumByCurrency()` uses — a multi-currency user would otherwise see PHP and USD silently summed into one meaningless number. In the common single-currency case this is invisible (one chart, no currency label); a second currency gets its own labeled chart section automatically.
+  - A transaction's category slice uses the category's own `color` (set at creation, T010) so a category reads the same color here as everywhere else in the app; falls back to a small fixed palette for the rare edge case of a category with no color, or an uncategorized debt/receivable repayment.
+  - The income/expense trend window (last 6 calendar months) is intentionally **not** tied to the category-breakdown period selector — trend is meant to always show recent history regardless of what period someone is inspecting for category spend, so the two controls don't fight each other.
+  - All reads use `useLiveQuery` (same pattern as every page since the T011 fix), so adding a transaction elsewhere in the app updates both charts immediately with no manual refresh.
+- **Verified before touching the device:** Playwright in a disposable cloud container with Supabase network calls blocked — confirmed the empty state before any transactions exist, added a categorized expense and income transaction, confirmed the category breakdown shows the correct category at 100% share, confirmed switching the period segment re-renders without error, and confirmed both chart SVGs actually render (not just the surrounding markup). Also ran a full `npm run build` on the device after installing `recharts` to confirm the production bundle compiles end to end, not just `tsc`.
+- **Files:** `src/pages/ReportsPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Reports" nav item/route), `package.json`/`package-lock.json` (new `recharts` dependency).
+- **Branch:** `feature/t017-reports-charts`
 
 ### T016-fix — Smarter Transactions label for debt/receivable repayments ✅
 - **Completed:** 2026-10-08
@@ -264,3 +276,4 @@ _Empty — T016 (Debt/receivable tracking UI) and its Transactions-label fix jus
 - 2026-10-08: T015 completed — Recurring transactions engine (src/lib/recurring.ts) + Recurring UI (src/pages/RecurringPage.tsx): a client-driven scheduler that catches up any missed occurrences of an active rule on app start, inserting real transactions through the same apply_transaction() trigger path as a manual entry. Verified catch-up (2 missed months -> 3 transactions), idempotent re-runs, and pause/delete all working in a disposable cloud container before touching the device. No schema migration needed (recurring_rules already existed from T002/T006). Phase 2 continues; next up is whichever the user picks from the remaining backlog (debt/receivable tracking, reports/charts, native Google sign-in, AI Q&A).
 - 2026-10-08: T016 completed — Debt/receivable tracking UI (src/pages/DebtsPage.tsx): I Owe / Owed to Me segments with Active/Settled sub-segments, create trackers, and a Pay/Collect action that records a real transaction (linked via debt_id/receivable_id) rather than touching remaining_amount directly -- the existing apply_debt_receivable_repayment() trigger from T002 does that on push, same server-authoritative pattern as account/goal balances. Verified in a disposable cloud container before touching the device. No schema migration needed. Next up: reports/charts, native Google sign-in, or AI Q&A -- whichever the user picks.
 - 2026-10-08: T016-fix completed -- Transactions list was showing debt/receivable repayments as a bare "Uncategorized" (correct, since those deliberately have no category_id, but confusing to read). User reported it after testing T016 on device; chose "show a smarter label" when asked. TransactionsPage.tsx now shows "Debt repayment: <counterparty>" / "Collected: <counterparty>" for those, falling back to "Uncategorized" only otherwise. Verified in a disposable cloud container, committed on the same T016 branch.
+- 2026-10-08: T017 completed -- Reports screen (src/pages/ReportsPage.tsx): spending-by-category pie chart (period-selectable) + a fixed last-6-months income/expense bar chart, both split per currency. First use of a charting library (recharts) in the project. Verified in a disposable cloud container plus a full production `npm run build` on the device. Remaining backlog: native Google sign-in for the Capacitor build, or AI Q&A (v2) -- whichever the user picks next.
