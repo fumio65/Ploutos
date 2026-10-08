@@ -3,6 +3,7 @@ import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } 
 import { ellipsisHorizontalOutline, homeOutline, swapHorizontalOutline, walletOutline } from 'ionicons/icons'
 import { Navigate, Route } from 'react-router-dom'
 import { AccountsPage } from '../pages/AccountsPage'
+import { CategoriesPage } from '../pages/CategoriesPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { DevSyncTestPage } from '../pages/DevSyncTestPage'
 import { MorePage } from '../pages/MorePage'
@@ -16,6 +17,7 @@ export function Tabs({ session }: { session: Session }) {
         <Route path="accounts" element={<AccountsPage session={session} />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="more" element={<MorePage session={session} />} />
+        <Route path="more/categories" element={<CategoriesPage session={session} />} />
         <Route path="more/dev-sync-test" element={<DevSyncTestPage session={session} />} />
         <Route path="" element={<Navigate to="dashboard" replace />} />
       </IonRouterOutlet>

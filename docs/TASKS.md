@@ -9,13 +9,6 @@
 
 ## Sprint Backlog
 
-### T010 — Categories seed data + management UI
-- [ ] Not started
-- **Depends on:** T008
-- **Context:** Seed a sensible default category set (income + expense) on first sign-in if none exist yet, plus a simple list/add/edit screen for user-defined categories. Needed before T012 (transactions need a category to pick from).
-- **Acceptance criteria:** New user gets default categories automatically; can add/edit/delete a custom category.
-- **Expected branch:** `feature/t010-categories-ui`
-
 ### T012 — Transaction entry + list UI
 - [ ] Not started
 - **Depends on:** T009, T010
@@ -42,6 +35,17 @@
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T010 — Categories seed data + management UI ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/lib/categories.ts` seeds a default set of 13 categories (4 income, 9 expense) for a user the first time `AppShell` mounts for them and they have none yet — not on every sign-in, so deleting all your categories doesn't bring them back. `src/pages/CategoriesPage.tsx` is a management screen (Expense/Income segmented list, swipe-to-delete with an `IonAlert` confirm, FAB to add, tap to edit name/kind/color), reachable from More → Categories.
+- **Key implementation choices:**
+  - Category deletion is a soft delete (`deleted_at`, matching the Postgres schema from T002) rather than a hard delete, and the UI doesn't currently expose restoring a deleted category — acceptable for v1 since no data is actually lost, just deferred; can add a restore view later the same way Accounts has Active/Archived if it turns out to matter.
+  - Reused the exact same write pattern as T009 (`db.categories.put(...)` + `queueChange('categories', id)`), so again no new sync logic was needed.
+- **Verified before touching the device:** seeding (fresh IndexedDB → defaults appear with no user action), create, edit/rename, and delete all driven by Playwright in the cloud container first. One test-script-only false negative during verification — `page.click('text=Delete')` matched the alert's header text ("Delete category?") rather than the button, since Ionic's alert isn't addressable by a plain substring selector — re-confirmed by targeting the actual `.alert-button` element directly, which deleted correctly; not an app bug.
+- **Acceptance criteria:** ✅ Met — confirmed by the user on their machine: default categories appear automatically, add/edit/swipe-delete all work.
+- **Files:** `src/lib/categories.ts` (new), `src/pages/CategoriesPage.tsx` (new), `src/AppShell.tsx` (calls the seed function once per sign-in), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Categories" entry/route).
+- **Expected branch:** `feature/t010-categories-ui`
 
 ### T009 — Accounts list + create/edit UI ✅
 - **Completed:** 2026-10-08
@@ -179,3 +183,4 @@
 - 2026-10-08: T007 completed — sync layer (`src/lib/sync.ts`) verified end to end against the live Supabase project. Found and fixed a real bug during verification: client/server clock drift was breaking last-write-wins (a local edit's browser-stamped timestamp was being compared directly against Postgres's server-stamped one with no offset correction). Added a `server_time()` RPC + `syncClockOffset()`/`nowIso()` in `sync.ts` to correct for this, plus a `runSyncExclusive()` guard against overlapping sync runs. Both conflict directions (local-wins, remote-wins) now reproduce cleanly and repeatably. All of Phase 0 (T001-T007) is now complete — sprint backlog is empty; next up is picking the first item from "Up Next" (Core UI is the natural starting point).
 - 2026-10-08: T008 completed — real four-tab navigation shell (Dashboard/Accounts/Transactions/More) replacing the demo App.tsx, built on react-router-dom v6 syntax (confirmed the older Redirect/children-based Route API from some Ionic examples doesn't exist in v6 — verified empirically with Playwright in a disposable cloud-container build before touching the device, not just by reading docs). Sync listeners now live in a shared SyncProvider/useSync() context instead of per-page. T009 (accounts list UI) is next up.
 - 2026-10-08: T009 completed — Accounts CRUD UI (src/pages/AccountsPage.tsx): create/edit/archive/restore, all wired through the existing queueChange/sync pattern with no new sync logic needed. Found and fixed a runtime-only Dexie SchemaError (orderBy on a non-indexed field) that tsc couldn't have caught — caught because the page was actually run with Playwright before being sent to the device, not just type-checked. Balance is deliberately not editable after account creation, since it becomes server-derived once T012 lands. T010 (categories) is next up.
+- 2026-10-08: T010 completed — default category seeding (13 categories, once per sign-in if none exist) and a Categories management screen (add/edit/swipe-delete), both verified with Playwright before touching the device. T012 (transaction entry + list) is next up and is now unblocked (its other dependency, T009, was already done).
