@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Session } from '@supabase/supabase-js'
 import {
   IonButton,
@@ -57,35 +58,31 @@ function formatDate(iso: string) {
 export function TransactionsPage({ session }: { session: Session }) {
   const { syncNow } = useSync()
 
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [accountFilter, setAccountFilter] = useState<string>(ALL_ACCOUNTS)
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<FormState>(blankForm('expense', [], []))
 
-  const refresh = async () => {
-    const [allAccounts, allCategories, allTransactions] = await Promise.all([
-      db.accounts.toArray(),
-      db.categories.toArray(),
-      db.transactions.toArray(),
-    ])
-    const activeAccounts = allAccounts.filter((a) => !a.deleted_at && !a.is_archived)
-    const visibleCategories = allCategories.filter((c) => !c.deleted_at)
-    const visibleTransactions = allTransactions.filter((t) => !t.deleted_at)
-
-    activeAccounts.sort((a, b) => a.name.localeCompare(b.name))
-    visibleCategories.sort((a, b) => a.name.localeCompare(b.name))
-    visibleTransactions.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
-
-    setAccounts(activeAccounts)
-    setCategories(visibleCategories)
-    setTransactions(visibleTransactions)
-  }
-
-  useEffect(() => {
-    refresh()
-  }, [])
+  // Each of these re-renders automatically on any write to its table — local
+  // or pulled down by a background sync (e.g. a transaction's account balance
+  // landing after push) — so nothing here needs a manual refresh.
+  const accounts = useLiveQuery(async () => {
+    const all = await db.accounts.toArray()
+    const active = all.filter((a) => !a.deleted_at && !a.is_archived)
+    active.sort((a, b) => a.name.localeCompare(b.name))
+    return active
+  }, []) ?? []
+  const categories = useLiveQuery(async () => {
+    const all = await db.categories.toArray()
+    const visible = all.filter((c) => !c.deleted_at)
+    visible.sort((a, b) => a.name.localeCompare(b.name))
+    return visible
+  }, []) ?? []
+  const transactions = useLiveQuery(async () => {
+    const all = await db.transactions.toArray()
+    const visible = all.filter((t) => !t.deleted_at)
+    visible.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+    return visible
+  }, []) ?? []
 
   const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
@@ -156,7 +153,6 @@ export function TransactionsPage({ session }: { session: Session }) {
     await queueChange('transactions', transaction.id)
 
     setModalOpen(false)
-    await refresh()
     // Account balances only move via the server-side trigger on insert, so
     // push this right away (best-effort — if offline, it just queues for
     // the next automatic sync) instead of waiting for the next online event.

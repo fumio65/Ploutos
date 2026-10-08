@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Session } from '@supabase/supabase-js'
 import {
   IonButton,
@@ -63,27 +64,27 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export function AccountsPage({ session }: { session: Session }) {
-  const [accounts, setAccounts] = useState<Account[]>([])
   const [segment, setSegment] = useState<'active' | 'archived'>('active')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
   const [form, setForm] = useState<FormState>(BLANK_FORM)
 
-  const refresh = async () => {
+  // useLiveQuery re-runs and re-renders automatically on *any* write to the
+  // `accounts` table — not just ones made from this page. That's what makes
+  // balance updates show up the moment a background sync pulls a server-
+  // trigger-updated balance down into Dexie, with no manual "refresh" call
+  // needed anywhere (here or after a sync completes elsewhere in the app).
+  const accounts = useLiveQuery(async () => {
     // `name` isn't an indexed field in the Dexie schema (db.ts only indexes
     // id/user_id/type/updated_at/deleted_at), so .orderBy('name') throws a
     // SchemaError at runtime — sort in JS instead of bumping the IndexedDB
     // schema version just for display ordering.
     const all = await db.accounts.toArray()
     all.sort((a, b) => a.name.localeCompare(b.name))
-    setAccounts(all)
-  }
-
-  useEffect(() => {
-    refresh()
+    return all
   }, [])
 
-  const visibleAccounts = accounts.filter((a) => a.is_archived === (segment === 'archived'))
+  const visibleAccounts = (accounts ?? []).filter((a) => a.is_archived === (segment === 'archived'))
 
   const openCreateModal = () => {
     setEditingAccount(null)
@@ -142,14 +143,12 @@ export function AccountsPage({ session }: { session: Session }) {
     }
 
     setModalOpen(false)
-    await refresh()
   }
 
   const setArchived = async (account: Account, archived: boolean) => {
     const updated: Account = { ...account, is_archived: archived, updated_at: nowIso() }
     await db.accounts.put(updated)
     await queueChange('accounts', updated.id)
-    await refresh()
   }
 
   return (

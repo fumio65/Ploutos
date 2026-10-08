@@ -36,6 +36,9 @@ export function MorePage({ session }: { session: Session }) {
           <IonItem button onClick={() => navigate('/tabs/more/categories')}>
             <IonLabel>Categories</IonLabel>
           </IonItem>
+          <IonItem button onClick={() => navigate('/tabs/more/goals')}>
+            <IonLabel>Goals</IonLabel>
+          </IonItem>
           <IonItem button onClick={() => navigate('/tabs/more/dev-sync-test')}>
             <IonLabel>Dev: Sync layer test</IonLabel>
           </IonItem>

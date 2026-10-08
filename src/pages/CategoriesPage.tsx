@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Session } from '@supabase/supabase-js'
 import {
   IonAlert,
@@ -41,28 +42,25 @@ function blankForm(kind: Category['kind']): FormState {
 }
 
 export function CategoriesPage({ session }: { session: Session }) {
-  const [categories, setCategories] = useState<Category[]>([])
   const [segment, setSegment] = useState<Category['kind']>('expense')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [form, setForm] = useState<FormState>(blankForm('expense'))
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null)
 
-  const refresh = async () => {
+  // Live-updates on any write to `categories` — local or pulled in by a
+  // background sync — so the list never needs a manual refresh.
+  const categories = useLiveQuery(async () => {
     // `name`/`kind` combo filtering happens client-side below; `deleted_at`
     // isn't filterable with a simple equals() since it's undefined for most
     // rows, so just pull everything for this user and filter in JS.
     const all = await db.categories.where('user_id').equals(session.user.id).toArray()
     const visible = all.filter((c) => !c.deleted_at)
     visible.sort((a, b) => a.name.localeCompare(b.name))
-    setCategories(visible)
-  }
+    return visible
+  }, [session.user.id])
 
-  useEffect(() => {
-    refresh()
-  }, [])
-
-  const visibleCategories = categories.filter((c) => c.kind === segment)
+  const visibleCategories = (categories ?? []).filter((c) => c.kind === segment)
 
   const openCreateModal = () => {
     setEditingCategory(null)
@@ -100,7 +98,6 @@ export function CategoriesPage({ session }: { session: Session }) {
     }
 
     setModalOpen(false)
-    await refresh()
   }
 
   const confirmDelete = async () => {
@@ -110,7 +107,6 @@ export function CategoriesPage({ session }: { session: Session }) {
     await db.categories.put(updated)
     await queueChange('categories', updated.id)
     setDeleteTarget(null)
-    await refresh()
   }
 
   return (

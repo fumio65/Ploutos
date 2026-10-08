@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import type { Session } from '@supabase/supabase-js'
 import { IonCard, IonCardContent, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonPage, IonTitle, IonToolbar } from '@ionic/react'
-import { db, type Account, type Goal, type Transaction } from '../lib/db'
+import { db } from '../lib/db'
 
 function formatMoney(amount: number, currency: string) {
   try {
@@ -27,30 +27,24 @@ function startOfThisMonthIso() {
 }
 
 export function DashboardPage({ session }: { session: Session }) {
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [goals, setGoals] = useState<Goal[]>([])
-  const [monthTransactions, setMonthTransactions] = useState<Transaction[]>([])
+  // Each query re-runs and re-renders live on any write to its table — local
+  // or pulled down by a background sync — so balances update here the moment
+  // a push/pull completes, with no manual refresh needed.
+  const accounts = useLiveQuery(async () => {
+    const all = await db.accounts.toArray()
+    return all.filter((a) => a.user_id === session.user.id && !a.deleted_at && !a.is_archived)
+  }, [session.user.id]) ?? []
 
-  useEffect(() => {
-    const load = async () => {
-      const [allAccounts, allGoals, allTransactions] = await Promise.all([
-        db.accounts.toArray(),
-        db.goals.toArray(),
-        db.transactions.toArray(),
-      ])
+  const goals = useLiveQuery(async () => {
+    const all = await db.goals.toArray()
+    return all.filter((g) => g.user_id === session.user.id && !g.deleted_at && !g.is_archived)
+  }, [session.user.id]) ?? []
 
-      setAccounts(allAccounts.filter((a) => a.user_id === session.user.id && !a.deleted_at && !a.is_archived))
-      setGoals(allGoals.filter((g) => g.user_id === session.user.id && !g.deleted_at && !g.is_archived))
-
-      const monthStart = startOfThisMonthIso()
-      setMonthTransactions(
-        allTransactions.filter(
-          (t) => t.user_id === session.user.id && !t.deleted_at && t.occurred_at >= monthStart,
-        ),
-      )
-    }
-    load()
-  }, [session])
+  const monthTransactions = useLiveQuery(async () => {
+    const all = await db.transactions.toArray()
+    const monthStart = startOfThisMonthIso()
+    return all.filter((t) => t.user_id === session.user.id && !t.deleted_at && t.occurred_at >= monthStart)
+  }, [session.user.id]) ?? []
 
   // Every total here is a straight sum of already-synced local records (account
   // balances kept correct by the server-side apply_transaction()/apply_transfer()
