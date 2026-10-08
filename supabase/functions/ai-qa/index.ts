@@ -23,9 +23,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 
-const GEMINI_MODEL = "gemini-3.8-flash"
+// Tried in order on the first call of a question; whichever one succeeds
+// first is then reused for the rest of that question's tool-calling loop
+// (switching models mid-conversation isn't supported). All three are on
+// Gemini's free tier. This exists because gemini-3.8-flash alone was
+// observed returning repeated 503 "high demand" errors in practice —
+// falling back to an older Flash model keeps the feature usable even
+// when the newest model is temporarily overloaded.
+const GEMINI_MODEL_CANDIDATES = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"]
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 const MAX_TOOL_ROUNDS = 5
+const RETRIES_PER_MODEL = 2
+const RETRY_DELAY_MS = 600
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -236,24 +245,67 @@ interface GeminiInteraction {
   steps: GeminiStep[]
 }
 
-async function callGemini(body: Record<string, unknown>): Promise<GeminiInteraction> {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** A single call to one model, with a couple of quick retries on a 503 (overloaded) response only. */
+async function callGeminiModel(body: Record<string, unknown>): Promise<GeminiInteraction> {
   const apiKey = Deno.env.get("GEMINI_API_KEY")
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured")
 
-  const response = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: {
-      "x-goog-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  })
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= RETRIES_PER_MODEL; attempt++) {
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    })
 
-  if (!response.ok) {
+    if (response.ok) {
+      return (await response.json()) as GeminiInteraction
+    }
+
     const text = await response.text()
-    throw new Error(`Gemini API error (${response.status}): ${text}`)
+    lastError = new Error(`Gemini API error (${response.status}): ${text}`)
+    if (response.status !== 503 || attempt === RETRIES_PER_MODEL) throw lastError
+    await sleep(RETRY_DELAY_MS * (attempt + 1))
   }
-  return (await response.json()) as GeminiInteraction
+  throw lastError ?? new Error("Gemini API call failed for an unknown reason")
+}
+
+/**
+ * Calls Gemini, picking the model to use.
+ *  - `model` given: calls exactly that model (used for every call after the
+ *    first one in a question's tool-calling loop, so the whole conversation
+ *    stays on one model).
+ *  - `model` omitted: tries each candidate in GEMINI_MODEL_CANDIDATES in
+ *    order (only on the very first call of a question) and returns both the
+ *    interaction and which model actually answered, so the caller can keep
+ *    using it for any follow-up tool-result calls.
+ */
+async function callGemini(
+  body: Record<string, unknown>,
+  model?: string,
+): Promise<{ interaction: GeminiInteraction; model: string }> {
+  if (model) {
+    const interaction = await callGeminiModel({ ...body, model })
+    return { interaction, model }
+  }
+
+  let lastError: Error | null = null
+  for (const candidate of GEMINI_MODEL_CANDIDATES) {
+    try {
+      const interaction = await callGeminiModel({ ...body, model: candidate })
+      return { interaction, model: candidate }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+    }
+  }
+  throw lastError ?? new Error("All Gemini model candidates failed")
 }
 
 function extractText(interaction: GeminiInteraction): string | null {
@@ -324,8 +376,7 @@ Deno.serve(async (req: Request) => {
       `requested period, say so plainly instead of making something up.\n\n` +
       `User question: ${question}`
 
-    let interaction = await callGemini({
-      model: GEMINI_MODEL,
+    let { interaction, model } = await callGemini({
       input: promptPrefix,
       tools: TOOL_DECLARATIONS,
     })
@@ -351,12 +402,14 @@ Deno.serve(async (req: Request) => {
         })
       }
 
-      interaction = await callGemini({
-        model: GEMINI_MODEL,
-        previous_interaction_id: interaction.id,
-        tools: TOOL_DECLARATIONS,
-        input: functionResults,
-      })
+      ;({ interaction } = await callGemini(
+        {
+          previous_interaction_id: interaction.id,
+          tools: TOOL_DECLARATIONS,
+          input: functionResults,
+        },
+        model,
+      ))
       rounds += 1
     }
 
