@@ -1,7 +1,7 @@
 # TASKS.md — Current Sprint
 
 **Phase:** 1 — Core UI
-**Sprint goal:** A usable app shell: navigate between accounts, transactions, and a dashboard, with real data flowing through Dexie + the T007 sync layer. Phase 0 (T001-T007, data model + sync) is complete and archived below.
+**Sprint goal:** A usable app shell: navigate between accounts, transactions, and a dashboard, with real data flowing through Dexie + the T007 sync layer. ✅ Complete — Phase 0 (T001-T007) and Phase 1 Core UI (T008-T013) are both done and archived below.
 **Started:** 2026-10-08
 **Branch naming convention:** `feature/t<id>-<short-slug>`
 
@@ -9,12 +9,7 @@
 
 ## Sprint Backlog
 
-### T013 — Dashboard screen
-- [ ] Not started
-- **Depends on:** T009, T012
-- **Context:** Balance overview across accounts, income vs. expense snapshot (e.g. this month), optional Net Worth view (accounts + goals balances combined, per the T001 goals design).
-- **Acceptance criteria:** Numbers shown reconcile with the underlying transaction/account data (no orphaned numbers, per PRD.md's success metric).
-- **Expected branch:** `feature/t013-dashboard`
+_Empty — Phase 1 (Core UI) is complete. Pick the next item from "Up Next" below to open the next sprint (Goals UI / T011 is a natural next step, now that accounts + transactions exist to transfer between)._
 
 ---
 
@@ -28,6 +23,18 @@
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T013 — Dashboard screen ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/pages/DashboardPage.tsx` — a total-balance card, a "this month" income/expense/net card, an optional net-worth card (only shown once goals exist), and a per-account balance breakdown.
+- **Key implementation choices:**
+  - Every number on the page is a straight sum over already-synced local Dexie records — active accounts' `balance` field (server-maintained by the `apply_transaction()`/`apply_transfer()` triggers) and this month's `transactions` rows as posted. Nothing is recomputed independently client-side, so the dashboard can't disagree with what actually synced down — directly satisfies the task's "no orphaned numbers" acceptance criterion.
+  - Totals are grouped and summed per currency (`sumByCurrency()`) rather than naively added together, since accounts aren't guaranteed to share one currency. With everything currently in PHP this shows as a single line per card, but won't silently produce a wrong combined number if a second currency is ever added.
+  - Net worth (accounts + goals) only renders once at least one goal exists — Goals UI (T011) hasn't shipped yet, so the card would otherwise always just duplicate the total-balance card.
+  - "This month" is the local calendar month (`occurred_at >= start of this month`), matching how a person would mentally scope "this month" rather than a rolling 30-day window.
+- **Verified before touching the device:** full flow driven by Playwright in the disposable cloud container — created an account, added an expense and an income transaction, confirmed the dashboard's total balance, income/expense/net, and per-account row all showed the correct figures; also confirmed the empty state (no accounts yet) renders before any data exists. Same network-blocking safeguard as T012 (`page.route(...).abort()` on the Supabase domain) since this still touches the real account's data model. Confirmed correct on the real device by the user afterward.
+- **Files:** `src/pages/DashboardPage.tsx` (new), `src/navigation/Tabs.tsx` (pass `session` through to the route)
+- **Branch:** `feature/t013-dashboard`
 
 ### T012 — Transaction entry + list UI ✅
 - **Completed:** 2026-10-08
@@ -190,3 +197,4 @@
 - 2026-10-08: T009 completed — Accounts CRUD UI (src/pages/AccountsPage.tsx): create/edit/archive/restore, all wired through the existing queueChange/sync pattern with no new sync logic needed. Found and fixed a runtime-only Dexie SchemaError (orderBy on a non-indexed field) that tsc couldn't have caught — caught because the page was actually run with Playwright before being sent to the device, not just type-checked. Balance is deliberately not editable after account creation, since it becomes server-derived once T012 lands. T010 (categories) is next up.
 - 2026-10-08: T010 completed — default category seeding (13 categories, once per sign-in if none exist) and a Categories management screen (add/edit/swipe-delete), both verified with Playwright before touching the device. T012 (transaction entry + list) is next up and is now unblocked (its other dependency, T009, was already done).
 - 2026-10-08: T012 completed — Transaction entry + combined list UI (src/pages/TransactionsPage.tsx), add-only (no edit/delete yet — the apply_transaction() Postgres trigger only fires on insert, so editing/deleting would desync account balances until a follow-up migration adds update/delete triggers). Verified in a disposable cloud container with all Supabase network calls blocked, since this is the first task whose test data touches the real financial account; confirmed working end-to-end (including live balance update after sync) on the real device by the user. T013 (dashboard) is next up and now unblocked.
+- 2026-10-08: T013 completed — Dashboard screen (src/pages/DashboardPage.tsx): total balance, this-month income/expense/net, optional net-worth card, per-account breakdown, all summed from already-synced local records (no client-side recomputation of server-derived values). Verified in a disposable cloud container with Supabase network calls blocked, confirmed on the real device by the user. Phase 1 (Core UI, T008-T013) is now fully complete — Sprint Backlog is empty; next up is picking the first item from "Up Next" (Goals UI / T011 is the natural next step).
