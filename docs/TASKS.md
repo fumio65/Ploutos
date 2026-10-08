@@ -9,17 +9,28 @@
 
 ## Sprint Backlog
 
-_Empty — T015 (Recurring transactions engine) just completed. Pick the next item from "Up Next" below._
+_Empty — T016 (Debt/receivable tracking UI) just completed. Pick the next item from "Up Next" below._
 
 ---
 
 ## Up Next (not in this sprint)
-- Debt/receivable tracking UI
 - Reports/charts
 - Native Google sign-in flow for Capacitor build
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T016 — Debt/receivable tracking UI ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/pages/DebtsPage.tsx` (reachable from More → Debts). A top segment switches between "I Owe" (`debts`) and "Owed to Me" (`receivables`), each with its own Active/Settled sub-segment. Create a tracker (counterparty, amount, currency, optional due date, note); tap a row to edit counterparty/due date/note (never the balance). An active row has a Pay/Collect button that records a real transaction against it.
+- **Key implementation choices:**
+  - A repayment is **never** a direct edit to `remaining_amount` — it's a normal transaction insert (`type: 'expense'` with `debt_id` set for a debt, `type: 'income'` with `receivable_id` set for a receivable). The existing `apply_debt_receivable_repayment()` Postgres trigger (from T002) is what actually decrements `remaining_amount` and flips `is_settled` on push — same server-authoritative pattern this app already uses for account balances (T009/T012) and goal balances (T011), not a new one invented for this feature.
+  - Because `remaining_amount`/`is_settled` are server-derived, they only update locally after a sync pull lands, not at the moment the repayment is recorded — exactly like a goal's balance after funding. `syncNow()` is called right after recording a repayment (same reasoning as `GoalsPage`'s fund/withdraw) so the real figure round-trips promptly, and `useLiveQuery` means the list updates the instant that pull arrives with zero manual refresh.
+  - Editing an existing debt/receivable is restricted to identity fields (counterparty, due date, note) — `original_amount` and `currency` are shown read-only after creation, same rationale as `AccountsPage` locking `balance` and `GoalsPage` locking a goal's `balance`: the number is tied to a trigger-maintained invariant that a free-form edit could silently desync.
+  - One page handles both debts and receivables (via a `trackerType` toggle) rather than two near-duplicate pages, since `Debt` and `Receivable` are structurally identical — same reasoning T012 used to combine the income/expense transaction list into one filterable view instead of two.
+- **Verified before touching the device:** full create/pay/collect flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Created a debt and a receivable, recorded a partial payment and a full collection, confirmed each landed as the correct transaction type linked via `debt_id`/`receivable_id`; since the trigger itself can't run with Supabase blocked, directly wrote the trigger's expected post-sync state into Dexie and confirmed the list reacted live (remaining amount updated, then the debt moved from Active to Settled with zero interaction).
+- **Files:** `src/pages/DebtsPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Debts" nav item/route).
+- **Branch:** `feature/t016-debt-receivable-tracking`
 
 ### T015 — Recurring transactions engine ✅
 - **Completed:** 2026-10-08
@@ -243,3 +254,4 @@ _Empty — T015 (Recurring transactions engine) just completed. Pick the next it
 - 2026-10-08: T011 completed — Goals UI (src/pages/GoalsPage.tsx): create/edit goals, fund/withdraw via transfers, all server-derived balance same as T009/T012. User testing surfaced a real architectural bug — balances didn't update without a manual Sync — root-caused to pages only re-reading Dexie on their own writes, not on background sync pulls. Fixed by switching every data-reading page to Dexie's useLiveQuery (new dexie-react-hooks dependency), verified by writing directly into IndexedDB from outside the app and confirming instant UI updates with zero interaction. Confirmed fixed on the real device. Goals UI was the last item explicitly named as a natural next step; remaining backlog (budgets, recurring transactions, debt/receivable tracking, reports, native Google sign-in, AI Q&A) is open for whichever the user wants next.
 - 2026-10-08: T014 completed — Category budgets UI (src/pages/BudgetsPage.tsx): set/edit/remove monthly spending limits per expense category, with progress bars and over-budget detection. No schema migration needed. Verified in cloud container with Supabase blocked, confirmed on device. Phase 2 (Extended Features) started.
 - 2026-10-08: T015 completed — Recurring transactions engine (src/lib/recurring.ts) + Recurring UI (src/pages/RecurringPage.tsx): a client-driven scheduler that catches up any missed occurrences of an active rule on app start, inserting real transactions through the same apply_transaction() trigger path as a manual entry. Verified catch-up (2 missed months -> 3 transactions), idempotent re-runs, and pause/delete all working in a disposable cloud container before touching the device. No schema migration needed (recurring_rules already existed from T002/T006). Phase 2 continues; next up is whichever the user picks from the remaining backlog (debt/receivable tracking, reports/charts, native Google sign-in, AI Q&A).
+- 2026-10-08: T016 completed — Debt/receivable tracking UI (src/pages/DebtsPage.tsx): I Owe / Owed to Me segments with Active/Settled sub-segments, create trackers, and a Pay/Collect action that records a real transaction (linked via debt_id/receivable_id) rather than touching remaining_amount directly -- the existing apply_debt_receivable_repayment() trigger from T002 does that on push, same server-authoritative pattern as account/goal balances. Verified in a disposable cloud container before touching the device. No schema migration needed. Next up: reports/charts, native Google sign-in, or AI Q&A -- whichever the user picks.
