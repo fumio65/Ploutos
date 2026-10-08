@@ -46,17 +46,45 @@ export function DashboardPage({ session }: { session: Session }) {
     return all.filter((t) => t.user_id === session.user.id && !t.deleted_at && t.occurred_at >= monthStart)
   }, [session.user.id]) ?? []
 
+  // Debts/receivables (T016) affect Net Worth too, per ARCHITECTURE.md /
+  // DECISIONS.md's definition (accounts + goals + receivables − debts) —
+  // this was missed when Debts/Receivables shipped after this Dashboard did.
+  const debts = useLiveQuery(async () => {
+    const all = await db.debts.toArray()
+    return all.filter((d) => d.user_id === session.user.id && !d.deleted_at)
+  }, [session.user.id]) ?? []
+
+  const receivables = useLiveQuery(async () => {
+    const all = await db.receivables.toArray()
+    return all.filter((r) => r.user_id === session.user.id && !r.deleted_at)
+  }, [session.user.id]) ?? []
+
   // Every total here is a straight sum of already-synced local records (account
   // balances kept correct by the server-side apply_transaction()/apply_transfer()
   // triggers; transaction amounts as posted) — nothing is recomputed from
   // scratch client-side, so these numbers can't drift from what synced down.
   const balanceByCurrency = sumByCurrency(accounts, (a) => a.currency, (a) => a.balance)
   const goalsByCurrency = sumByCurrency(goals, (g) => g.currency, (g) => g.balance)
+  // remaining_amount is already the server-maintained, trigger-updated figure
+  // (apply_debt_receivable_repayment()) — never recomputed from transactions here.
+  const receivablesByCurrency = sumByCurrency(receivables, (r) => r.currency, (r) => r.remaining_amount)
+  const debtsByCurrency = sumByCurrency(debts, (d) => d.currency, (d) => d.remaining_amount)
 
   const netWorthByCurrency = new Map(balanceByCurrency)
   for (const [currency, amount] of goalsByCurrency) {
     netWorthByCurrency.set(currency, (netWorthByCurrency.get(currency) ?? 0) + amount)
   }
+  for (const [currency, amount] of receivablesByCurrency) {
+    netWorthByCurrency.set(currency, (netWorthByCurrency.get(currency) ?? 0) + amount)
+  }
+  for (const [currency, amount] of debtsByCurrency) {
+    netWorthByCurrency.set(currency, (netWorthByCurrency.get(currency) ?? 0) - amount)
+  }
+
+  // The Net Worth card only earns its place once it can actually differ from
+  // the Total Balance card above — i.e. once there's a goal, debt, or
+  // receivable in the picture, not just plain accounts.
+  const showNetWorth = goals.length > 0 || debts.length > 0 || receivables.length > 0
 
   const incomeByCurrency = sumByCurrency(
     monthTransactions.filter((t) => t.type === 'income'),
@@ -126,11 +154,16 @@ export function DashboardPage({ session }: { session: Session }) {
               </IonCardContent>
             </IonCard>
 
-            {goals.length > 0 && (
+            {showNetWorth && (
               <IonCard>
                 <IonCardContent>
                   <IonCardTitle className="text-base">Net worth</IonCardTitle>
-                  <p className="text-sm opacity-60 mb-2">Accounts + {goals.length} goal{goals.length === 1 ? '' : 's'}</p>
+                  <p className="text-sm opacity-60 mb-2">
+                    Accounts
+                    {goals.length > 0 && ` + ${goals.length} goal${goals.length === 1 ? '' : 's'}`}
+                    {receivables.length > 0 && ` + ${receivables.length} receivable${receivables.length === 1 ? '' : 's'}`}
+                    {debts.length > 0 && ` − ${debts.length} debt${debts.length === 1 ? '' : 's'}`}
+                  </p>
                   {[...netWorthByCurrency.entries()].map(([currency, amount]) => (
                     <p key={currency} className="text-xl font-semibold">
                       {formatMoney(amount, currency)}
