@@ -9,18 +9,32 @@
 
 ## Sprint Backlog
 
-_Empty — T014 (Category budgets) just completed. Pick the next item from "Up Next" below._
+_Empty — T015 (Recurring transactions engine) just completed. Pick the next item from "Up Next" below._
 
 ---
 
 ## Up Next (not in this sprint)
-- Recurring transactions engine
 - Debt/receivable tracking UI
 - Reports/charts
 - Native Google sign-in flow for Capacitor build
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T015 — Recurring transactions engine ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/lib/recurring.ts` (the engine) + `src/pages/RecurringPage.tsx` (reachable from More → Recurring). The `recurring_rules` table (schema already existed from T002/T006) now actually drives something: on every app start, `AppShell` runs `runDueRecurringRulesOnce()`, which finds every active rule whose `next_run_date` has arrived and inserts a real transaction for it (same `apply_transaction()` trigger path as a manually entered transaction), then advances `next_run_date`. The Recurring page lets the user create/edit rules (account, category, amount, frequency + interval, start/end date, note), with Active/Paused segments and pause/resume + soft-delete via swipe actions.
+- **Key implementation choices:**
+  - No server-side cron — this is a purely client-driven scheduler. Each rule tracks its own `next_run_date`, so "running the engine" just means walking active rules whose date has arrived and catching them up.
+  - **Catch-up, not skip-to-now:** if the app wasn't opened for a while and a rule missed several periods, the engine posts one transaction per elapsed period (capped at 500 iterations as a safety net) rather than silently jumping `next_run_date` straight to today and losing the missed occurrences. Reopening the app after being away for 2 months correctly backfilled all 2 missed monthly entries in verification, not just the most recent one.
+  - **Idempotent by construction:** since each catch-up transaction advances `next_run_date` past itself before moving to the next period, and a reentrancy guard (`runDueRecurringRulesOnce`, same pattern as `sync.ts`'s `runSyncExclusive()`) collapses overlapping calls into one, re-running the engine immediately afterward creates zero duplicate transactions — verified directly.
+  - Generated transactions are add-only inserts (new `crypto.randomUUID()` each time), so `apply_transaction()`'s after-insert-only trigger still correctly moves the account balance on push — this doesn't touch the T012 add-only constraint at all, it just inserts through the same path a manual entry would.
+  - `end_date` is respected during catch-up itself (a rule won't post an occurrence past its end date) and the rule auto-deactivates (`is_active: false`) the moment its catch-up run crosses `end_date`, rather than needing a separate check elsewhere.
+  - Editing an existing rule's amount/category/frequency/etc. never touches `next_run_date` — only future occurrences are affected, past transactions it already posted stay exactly as they were created.
+  - All reads use `useLiveQuery` (same pattern as T011/T014), so pausing or deleting a rule updates both segments instantly with no manual refresh.
+- **Verified before touching the device:** full create/catch-up/pause/delete flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Specifically verified: a monthly rule backdated 2 months correctly generated 3 transactions (today + 2 missed periods) linked via `recurring_rule_id`; `next_run_date` advanced past today; an immediate second run created 0 new transactions; a paused rule was skipped by the engine even when "due"; pause/delete both reacted live in the UI with zero manual refresh.
+- **Files:** `src/lib/recurring.ts` (new), `src/pages/RecurringPage.tsx` (new), `src/AppShell.tsx` (runs the engine once per sign-in, alongside category seeding), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Recurring" nav item/route).
+- **Branch:** `feature/t015-recurring-transactions`
 
 ### T014 — Category budgets UI ✅
 - **Completed:** 2026-10-08
@@ -228,3 +242,4 @@ _Empty — T014 (Category budgets) just completed. Pick the next item from "Up N
 - 2026-10-08: T013 completed — Dashboard screen (src/pages/DashboardPage.tsx): total balance, this-month income/expense/net, optional net-worth card, per-account breakdown, all summed from already-synced local records (no client-side recomputation of server-derived values). Verified in a disposable cloud container with Supabase network calls blocked, confirmed on the real device by the user. Phase 1 (Core UI, T008-T013) is now fully complete — Sprint Backlog is empty; next up is picking the first item from "Up Next" (Goals UI / T011 is the natural next step).
 - 2026-10-08: T011 completed — Goals UI (src/pages/GoalsPage.tsx): create/edit goals, fund/withdraw via transfers, all server-derived balance same as T009/T012. User testing surfaced a real architectural bug — balances didn't update without a manual Sync — root-caused to pages only re-reading Dexie on their own writes, not on background sync pulls. Fixed by switching every data-reading page to Dexie's useLiveQuery (new dexie-react-hooks dependency), verified by writing directly into IndexedDB from outside the app and confirming instant UI updates with zero interaction. Confirmed fixed on the real device. Goals UI was the last item explicitly named as a natural next step; remaining backlog (budgets, recurring transactions, debt/receivable tracking, reports, native Google sign-in, AI Q&A) is open for whichever the user wants next.
 - 2026-10-08: T014 completed — Category budgets UI (src/pages/BudgetsPage.tsx): set/edit/remove monthly spending limits per expense category, with progress bars and over-budget detection. No schema migration needed. Verified in cloud container with Supabase blocked, confirmed on device. Phase 2 (Extended Features) started.
+- 2026-10-08: T015 completed — Recurring transactions engine (src/lib/recurring.ts) + Recurring UI (src/pages/RecurringPage.tsx): a client-driven scheduler that catches up any missed occurrences of an active rule on app start, inserting real transactions through the same apply_transaction() trigger path as a manual entry. Verified catch-up (2 missed months -> 3 transactions), idempotent re-runs, and pause/delete all working in a disposable cloud container before touching the device. No schema migration needed (recurring_rules already existed from T002/T006). Phase 2 continues; next up is whichever the user picks from the remaining backlog (debt/receivable tracking, reports/charts, native Google sign-in, AI Q&A).
