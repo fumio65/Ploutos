@@ -13,7 +13,7 @@ export function Tabs({ session }: { session: Session }) {
     <IonTabs>
       <IonRouterOutlet>
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="accounts" element={<AccountsPage session={session} />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="more" element={<MorePage session={session} />} />
         <Route path="more/dev-sync-test" element={<DevSyncTestPage session={session} />} />

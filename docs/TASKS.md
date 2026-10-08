@@ -9,13 +9,6 @@
 
 ## Sprint Backlog
 
-### T009 — Accounts list + create/edit UI
-- [ ] Not started
-- **Depends on:** T008
-- **Context:** Real CRUD screen for `accounts` (list with balances, add/edit form: name, type, currency, icon/color), writing through Dexie + `queueChange('accounts', id)` exactly like the sync-test harness does, so it's already sync-correct.
-- **Acceptance criteria:** Create/edit/archive an account from the UI; balance shown matches Dexie; survives a page reload; syncs to Supabase.
-- **Expected branch:** `feature/t009-accounts-ui`
-
 ### T010 — Categories seed data + management UI
 - [ ] Not started
 - **Depends on:** T008
@@ -49,6 +42,19 @@
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T009 — Accounts list + create/edit UI ✅
+- **Completed:** 2026-10-08
+- **Outcome:** Real CRUD screen for `accounts` in `src/pages/AccountsPage.tsx`: Active/Archived segmented list, swipe-to-archive and swipe-to-restore (`IonItemSliding`), a FAB to open a create form (name, type, currency, opening balance, color swatch), and tap-to-edit (name/type/currency/color only — balance is deliberately not editable after creation, see below).
+- **Key implementation choices:**
+  - All writes go through the same `db.accounts.put(...)` + `queueChange('accounts', id)` pattern the T007 sync-test harness established, so every create/edit/archive/restore is already sync-correct with no new logic needed in `sync.ts`.
+  - Editing an existing account cannot change its `balance`. Only account creation sets an opening balance. This matches where the data model is headed: once T012 (transactions) lands, `balance` becomes derived (maintained server-side by the `apply_transaction()`/`apply_transfer()` triggers from T002), so letting the UI edit it directly after creation would let the client silently disagree with the server-authoritative value. The edit form shows a one-line note explaining this instead of a disabled input, so it doesn't read as a bug.
+  - Icon picker was scoped out for now (color swatch only) — six preset colors cover the "visually distinguish your accounts" need without building a full icon-asset picker before there's more than one screen that would use it.
+- **Bug found and fixed during verification:** `refresh()` initially called `db.accounts.orderBy('name').toArray()`, which throws a Dexie `SchemaError` (`KeyPath name on object store accounts is not indexed`) at runtime — `name` isn't one of the indexed fields in `db.ts`'s `accounts` store (only `id`/`user_id`/`type`/`updated_at`/`deleted_at` are). `tsc` doesn't catch this (it's a runtime-only Dexie check), which is exactly why it was caught by actually running the page, not just type-checking it. Fixed by sorting in JS (`toArray()` then `.sort(...)`) instead of bumping the IndexedDB schema version just for display ordering.
+- **Verified before touching the device:** full CRUD cycle driven by Playwright in the cloud container (same fake-session-bypass technique as T008, removed afterward) — create an account, confirm it appears with formatted balance, edit/rename it, archive it (confirmed it disappears from Active), confirm it appears in Archived, restore it (confirmed it disappears from Archived and reappears in Active). Zero page errors after the orderBy fix. `tsc -b --noEmit` clean in both the cloud container and the user's machine.
+- **Acceptance criteria:** ✅ Met — confirmed by the user on their machine: create/edit/archive/restore all work, balance display is correct, syncs through the existing T007 layer.
+- **Files:** `src/pages/AccountsPage.tsx`, `src/navigation/Tabs.tsx` (passes `session` through to `AccountsPage`).
+- **Expected branch:** `feature/t009-accounts-ui`
 
 ### T008 — App navigation shell (Ionic tabs) ✅
 - **Completed:** 2026-10-08
@@ -172,3 +178,4 @@
 - 2026-10-08: T006 completed — `src/lib/db.ts` defines the Dexie local schema, a 1:1 field match with all nine Postgres tables from T002. Type-checked clean in a separate build and on the user's machine after `npm install dexie`; no bridge/install issues since dexie is pure JS with no native bindings. T007 (sync layer) is now fully unblocked — both its dependencies (T005, T006) are done.
 - 2026-10-08: T007 completed — sync layer (`src/lib/sync.ts`) verified end to end against the live Supabase project. Found and fixed a real bug during verification: client/server clock drift was breaking last-write-wins (a local edit's browser-stamped timestamp was being compared directly against Postgres's server-stamped one with no offset correction). Added a `server_time()` RPC + `syncClockOffset()`/`nowIso()` in `sync.ts` to correct for this, plus a `runSyncExclusive()` guard against overlapping sync runs. Both conflict directions (local-wins, remote-wins) now reproduce cleanly and repeatably. All of Phase 0 (T001-T007) is now complete — sprint backlog is empty; next up is picking the first item from "Up Next" (Core UI is the natural starting point).
 - 2026-10-08: T008 completed — real four-tab navigation shell (Dashboard/Accounts/Transactions/More) replacing the demo App.tsx, built on react-router-dom v6 syntax (confirmed the older Redirect/children-based Route API from some Ionic examples doesn't exist in v6 — verified empirically with Playwright in a disposable cloud-container build before touching the device, not just by reading docs). Sync listeners now live in a shared SyncProvider/useSync() context instead of per-page. T009 (accounts list UI) is next up.
+- 2026-10-08: T009 completed — Accounts CRUD UI (src/pages/AccountsPage.tsx): create/edit/archive/restore, all wired through the existing queueChange/sync pattern with no new sync logic needed. Found and fixed a runtime-only Dexie SchemaError (orderBy on a non-indexed field) that tsc couldn't have caught — caught because the page was actually run with Playwright before being sent to the device, not just type-checked. Balance is deliberately not editable after account creation, since it becomes server-derived once T012 lands. T010 (categories) is next up.
