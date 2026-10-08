@@ -3,6 +3,7 @@ import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } 
 import { ellipsisHorizontalOutline, homeOutline, swapHorizontalOutline, walletOutline } from 'ionicons/icons'
 import { Navigate, Route } from 'react-router-dom'
 import { AccountsPage } from '../pages/AccountsPage'
+import { AskAiPage } from '../pages/AskAiPage'
 import { BudgetsPage } from '../pages/BudgetsPage'
 import { CategoriesPage } from '../pages/CategoriesPage'
 import { DashboardPage } from '../pages/DashboardPage'
@@ -28,6 +29,7 @@ export function Tabs({ session }: { session: Session }) {
         <Route path="more/recurring" element={<RecurringPage session={session} />} />
         <Route path="more/debts" element={<DebtsPage session={session} />} />
         <Route path="more/reports" element={<ReportsPage session={session} />} />
+        <Route path="more/ask-ai" element={<AskAiPage session={session} />} />
         <Route path="more/dev-sync-test" element={<DevSyncTestPage session={session} />} />
         <Route path="" element={<Navigate to="dashboard" replace />} />
       </IonRouterOutlet>
