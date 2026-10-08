@@ -84,8 +84,16 @@ export function TransactionsPage({ session }: { session: Session }) {
     return visible
   }, []) ?? []
 
+  // Debt/receivable repayments are linked via debt_id/receivable_id instead
+  // of a category (see DebtsPage/T016) — loaded here only to turn one of
+  // those into a readable label instead of a bare "Uncategorized".
+  const debts = useLiveQuery(async () => db.debts.toArray(), []) ?? []
+  const receivables = useLiveQuery(async () => db.receivables.toArray(), []) ?? []
+
   const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const debtsById = useMemo(() => new Map(debts.map((d) => [d.id, d])), [debts])
+  const receivablesById = useMemo(() => new Map(receivables.map((r) => [r.id, r])), [receivables])
 
   const visibleTransactions =
     accountFilter === ALL_ACCOUNTS ? transactions : transactions.filter((t) => t.account_id === accountFilter)
@@ -121,6 +129,27 @@ export function TransactionsPage({ session }: { session: Session }) {
   }
 
   const categoryOptionsForForm = categories.filter((c) => c.kind === form.type)
+
+  // A transaction's label: its category when it has one, or — for a debt/
+  // receivable repayment, which is deliberately uncategorized (principal
+  // repayment isn't discretionary spending) — the counterparty it's linked
+  // to, so the list reads as "Debt repayment: Credit Card" rather than a
+  // bare, unexplained "Uncategorized".
+  function transactionLabel(t: Transaction): string {
+    if (t.category_id) {
+      const category = categoriesById.get(t.category_id)
+      if (category) return category.name
+    }
+    if (t.debt_id) {
+      const debt = debtsById.get(t.debt_id)
+      return debt ? `Debt repayment: ${debt.counterparty}` : 'Debt repayment'
+    }
+    if (t.receivable_id) {
+      const receivable = receivablesById.get(t.receivable_id)
+      return receivable ? `Collected: ${receivable.counterparty}` : 'Collection'
+    }
+    return 'Uncategorized'
+  }
 
   const saveTransaction = async () => {
     const amount = Number.parseFloat(form.amount)
@@ -204,7 +233,7 @@ export function TransactionsPage({ session }: { session: Session }) {
                     style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: category?.color ?? '#999' }}
                   />
                   <IonLabel>
-                    <h2>{category?.name ?? 'Uncategorized'}</h2>
+                    <h2>{transactionLabel(t)}</h2>
                     <p>
                       {formatDate(t.occurred_at)}
                       {accountFilter === ALL_ACCOUNTS && account ? ` · ${account.name}` : ''}
