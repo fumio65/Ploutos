@@ -103,7 +103,7 @@ export function AskAiPage({ session }: { session: Session }) {
                   ? 'self-end bg-navy text-white rounded-2xl px-4 py-2 max-w-[85%]'
                   : m.role === 'error'
                     ? 'self-start bg-red-100 text-red-800 rounded-2xl px-4 py-2 max-w-[85%]'
-                    : 'self-start bg-mist rounded-2xl px-4 py-2 max-w-[85%]'
+                    : 'self-start bg-mist text-ink rounded-2xl px-4 py-2 max-w-[85%]'
               }
               style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start' }}
             >
