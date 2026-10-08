@@ -9,29 +9,7 @@
 
 ## Sprint Backlog
 
-### T006 — Dexie.js local schema
-- [ ] Not started
-- **Depends on:** T002 ✅
-- **Context (how to execute):**
-  1. Define a Dexie database with tables mirroring every syncable Postgres table from T002.
-  2. Match field names/types so sync mapping stays simple (no translation layer needed between local and remote field names).
-- **Acceptance criteria:** Local Dexie schema has a 1:1 table/field match with the Postgres schema (excluding server-only columns like RLS-internal fields, if any).
-- **Expected branch:** `feature/t006-dexie-schema`
-- **Commits:** —
-
-### T007 — Sync layer (outbox + watermark)
-- [ ] Not started
-- **Depends on:** T005 ✅, T006
-- **Context (how to execute):**
-  1. Add an `outbox` table locally: queues created/updated/deleted records made while offline.
-  2. On reconnect (via `navigator.onLine` + a health-check ping), push outbox entries to Supabase in order.
-  3. Pull remote rows where `updated_at > last_synced_at`, merge into local store, update `last_synced_at`.
-  4. Implement last-write-wins: if a local and remote record conflict, the one with the later `updated_at` wins.
-- **Acceptance criteria:**
-  - Create a record offline → go online → confirm it appears in Supabase.
-  - Edit the same record from two separate sessions while both were offline → reconnect both → confirm the later edit wins and no sync crash/duplicate occurs.
-- **Expected branch:** `feature/t007-sync-layer`
-- **Commits:** —
+_Sprint backlog is empty — all planned Phase 0 tasks (T001-T007) are complete. See "Up Next" below for the following sprint's candidates._
 
 ---
 
@@ -46,6 +24,35 @@
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T007 — Sync layer (outbox + watermark) ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/lib/sync.ts` implements the full offline sync layer: `queueChange()` (marks a record dirty in the local `outbox` table), `pushOutbox()` (drains the outbox, last-write-wins per record against the live remote row), `pullTable()` (pulls anything changed remotely since each table's `sync_meta.last_synced_at` watermark), and `runSync()` (push-then-pull across all nine syncable tables, wired to fire on the browser's `online` event and once on app start via `startSyncListeners()`). Verified against a real Supabase project with a manual test harness in `App.tsx` ("Sync layer test" card): create-offline-then-sync, local-edit-wins, and remote-edit-wins were each demonstrated against live data, with the final local/remote state checked directly via SQL to confirm (not just trusting the UI).
+- **Key implementation choices:**
+  - Conflict resolution is purely by `updated_at` comparison (`>` for push, `>=` for pull — ties favor local), no vector clocks or per-field merging. Matches ARCHITECTURE.md's documented last-write-wins design; acceptable for a single-user app where "conflicts" mostly mean the same user editing from two devices, not concurrent multi-user writes.
+  - `pushOutbox()` dedupes queued entries by `(table, record_id)` before pushing — only the record's *current* local state is sent once, not every intermediate edit — and always reads the record fresh from Dexie at push time (never from the outbox entry itself), so multiple edits queued before a sync still resolve correctly.
+  - A losing push doesn't just get discarded — the newer remote row is pulled down and overwrites the local one, so the local copy is never left stale after losing a conflict.
+- **Bug found and fixed during verification — client/server clock drift breaks last-write-wins:**
+  - The conflict test ("local edit should win when it's the later edit, in real time") failed twice in a row: `pushOutbox` kept reporting the remote row as newer even when the local edit was made several seconds *after* the remote edit, in real wall-clock time.
+  - Root cause: the original code stamped local edits with the browser's own `new Date().toISOString()`, then compared that string directly against Postgres's `updated_at` (set by the `set_updated_at()` trigger using the **server's** clock). This assumes the two clocks agree. They don't have to — a user's OS clock can run minutes off from true/server time for any reason, with zero relation to how recently they actually made an edit. When the local clock runs behind the server's, local edits look "older" than they really are, so remote wins conflicts it shouldn't.
+  - **Fix:** added a `server_time()` Postgres function (`supabase/migrations/0004_server_time_rpc.sql`, just `select now()`, granted to `authenticated`/`anon`) and a `syncClockOffset()` function in `sync.ts` that calls it via `supabase.rpc('server_time')` once per `runSync()`, measuring `offset = serverTime − localTime` (using the round-trip midpoint to approximate network latency) and caching it. A new `nowIso()` helper (`new Date(Date.now() + offset).toISOString()`) replaces every raw `new Date().toISOString()` used for a syncable record's `updated_at` — in `queueChange()`, and in `App.tsx`'s test-harness writes. This makes conflict resolution robust to an inaccurate device clock without requiring the user to fix their OS clock settings (the user deliberately keeps automatic time sync off, so correcting for drift in software rather than asking them to change that was the right call here, and is also simply the more correct architecture regardless).
+  - **Secondary fix, found while diagnosing the above:** `startSyncListeners()` had no guard against two syncs running concurrently (e.g. the automatic `online`-event/startup trigger overlapping a manual "Sync now" click). An overlapping pair can race — one call's pull can read a record before the other call's push/pull writes it, then write its own now-stale decision on top, silently discarding a legitimate push. Added `runSyncExclusive()`, which returns the in-flight sync's promise instead of starting a second overlapping one if a sync is already running; both the automatic listeners and the manual "Sync now" button now go through it.
+  - **Lesson for future sync/timestamp work on this project:** never compare a client-stamped timestamp directly against a server-stamped one without measuring and correcting for clock offset first — this applies to any future feature that does last-write-wins or "most recent" logic across the client/server boundary (e.g. recurring-rule `next_run_date` checks, if those ever get client-side pre-computation).
+- **Acceptance criteria:** ✅ Met.
+  - Create a record offline → go online → appears in Supabase: confirmed (verified directly via SQL, not just the UI).
+  - Later edit wins regardless of which side made it: confirmed both directions after the clock-offset fix — local-wins (`pushed 1, remote-won 0`) and remote-wins (`pushed 0, pulled 1`, local balance matching the remote value exactly) both reproduced cleanly and repeatably.
+- **Files:** `src/lib/sync.ts`, `supabase/migrations/0004_server_time_rpc.sql`, `src/App.tsx` (test harness), `src/lib/db.ts` (unchanged, already had the `outbox`/`sync_meta` tables from T006).
+- **Expected branch:** `feature/t007-sync-layer`
+
+### T006 — Dexie.js local schema ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/lib/db.ts` defines a Dexie (IndexedDB) database (`ploutos`) with the same nine tables as `0001_schema.sql`: `categories`, `accounts`, `goals`, `transactions`, `transfers`, `debts`, `receivables`, `budgets`, `recurring_rules`. Every field name and shape matches the Postgres columns 1:1 (timestamptz → ISO string, numeric(18,2) → number, uuid → string, nullable columns → optional TS fields), so the T007 sync layer can map rows without a translation layer, per the task's acceptance criteria.
+- **Key implementation choices:**
+  - A TypeScript interface per table (`Category`, `Account`, `Goal`, `Transaction`, `Transfer`, `Debt`, `Receivable`, `Budget`, `RecurringRule`) gives the local store the same type safety Postgres's `check` constraints give the remote one (e.g. `type: 'income' | 'expense'` mirrors the `check (type in (...))` constraint).
+  - Dexie's `stores()` index list is deliberately not "every column" — only `user_id`, `updated_at`, `deleted_at`, and whichever foreign keys the UI will filter/join on (e.g. `account_id` on `transactions`, `from_goal_id`/`to_goal_id` on `transfers`) are indexed. `updated_at` is indexed on every table specifically because T007's sync pull step queries "everything changed since `last_synced_at`" per table.
+  - `transfers` keeps the same four nullable FK columns (`from_account_id`/`from_goal_id`/`to_account_id`/`to_goal_id`) as the Postgres table, preserving the T001 goals design (a transfer's source/target can be an account or a goal) at the local-schema level too — the `chk_transfer_from_one_source`/`chk_transfer_to_one_target` constraints aren't enforceable in IndexedDB, so that invariant will need to be checked in application code when T007/the UI writes transfer records.
+- **Verified:** Type-checked (`tsc -b --noEmit`) with zero errors, both in a separate clean build and on the user's own machine after `npm install dexie`. No native bindings in `dexie` (pure JS), so none of the T004/T005 bridge-install issues applied here.
+- **File:** `src/lib/db.ts`
 
 ### T005 — Supabase project setup ✅
 - **Completed:** 2026-10-08
@@ -124,3 +131,6 @@
 - 2026-10-08: T004 visual check confirmed by user — `npm run dev` ran successfully after re-running `npm i` natively on Windows (fixed missing `.bin` shims). Tailwind + Ionic render together correctly, no conflicts. T004 fully closed. T005 (Supabase setup) is next up.
 - 2026-10-08: T005 in progress — created the Supabase project (`Ploutos`, ref `lbtgbblmvxcynbwkefbx`) after pausing `lasenggo-3000` to clear the org's free-tier project cap. Applied the T002 schema and T003 RLS migrations directly to the live project, plus a follow-up migration pinning `search_path` on the trigger functions (security advisor now clean). Google OAuth setup is manual (Google Cloud Console + Supabase dashboard, no API for this) and is in progress with the user.
 - 2026-10-08: T005 completed — Google OAuth client created and wired into Supabase; `src/lib/supabase.ts` and an auth-aware `App.tsx` added to the scaffold. Hit and fixed a corrupted `tslib` install (leftover from earlier bridge-interrupted installs, same root cause as the T004 shim issue) via a full clean `node_modules` reinstall done natively on Windows. User signed in with a real Google account (`lhestertomenio1@gmail.com`) and the session rendered correctly in the app — acceptance criteria met, T005 fully closed. T006 (Dexie local schema) is next up and unblocked; T007 (sync layer) now only waits on T006.
+- 2026-10-08: Project pushed to GitHub (`github.com/fumio65/Ploutos`, `main`, commit `d4dd226`) — docs, schema/RLS migrations, and the full scaffold. Authored as the user (`fumio65`), no Claude attribution. `node_modules` and `.env.local` correctly excluded via `.gitignore`.
+- 2026-10-08: T006 completed — `src/lib/db.ts` defines the Dexie local schema, a 1:1 field match with all nine Postgres tables from T002. Type-checked clean in a separate build and on the user's machine after `npm install dexie`; no bridge/install issues since dexie is pure JS with no native bindings. T007 (sync layer) is now fully unblocked — both its dependencies (T005, T006) are done.
+- 2026-10-08: T007 completed — sync layer (`src/lib/sync.ts`) verified end to end against the live Supabase project. Found and fixed a real bug during verification: client/server clock drift was breaking last-write-wins (a local edit's browser-stamped timestamp was being compared directly against Postgres's server-stamped one with no offset correction). Added a `server_time()` RPC + `syncClockOffset()`/`nowIso()` in `sync.ts` to correct for this, plus a `runSyncExclusive()` guard against overlapping sync runs. Both conflict directions (local-wins, remote-wins) now reproduce cleanly and repeatably. All of Phase 0 (T001-T007) is now complete — sprint backlog is empty; next up is picking the first item from "Up Next" (Core UI is the natural starting point).
