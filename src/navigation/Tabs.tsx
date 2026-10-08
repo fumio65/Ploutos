@@ -9,6 +9,7 @@ import { DashboardPage } from '../pages/DashboardPage'
 import { DevSyncTestPage } from '../pages/DevSyncTestPage'
 import { GoalsPage } from '../pages/GoalsPage'
 import { MorePage } from '../pages/MorePage'
+import { RecurringPage } from '../pages/RecurringPage'
 import { TransactionsPage } from '../pages/TransactionsPage'
 
 export function Tabs({ session }: { session: Session }) {
@@ -22,6 +23,7 @@ export function Tabs({ session }: { session: Session }) {
         <Route path="more/budgets" element={<BudgetsPage session={session} />} />
         <Route path="more/categories" element={<CategoriesPage session={session} />} />
         <Route path="more/goals" element={<GoalsPage session={session} />} />
+        <Route path="more/recurring" element={<RecurringPage session={session} />} />
         <Route path="more/dev-sync-test" element={<DevSyncTestPage session={session} />} />
         <Route path="" element={<Navigate to="dashboard" replace />} />
       </IonRouterOutlet>
