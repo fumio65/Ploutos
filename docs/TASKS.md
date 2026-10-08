@@ -9,14 +9,28 @@
 
 ## Sprint Backlog
 
-_Empty — T018 (native Google sign-in prep) just completed. Pick the next item from "Up Next" below._
+_Empty — T019 (AI Q&A) just completed, pending the user setting the GEMINI_API_KEY secret. No more backlog items currently planned; next is whatever the user wants to add._
 
 ---
 
 ## Up Next (not in this sprint)
-- AI Q&A: Edge Function + tool-calling query layer (v2)
+_Empty — the planned v1/v2 backlog (PRD.md) is now fully built. Future items will be whatever the user asks for next._
 
 ## Archived (Completed)
+
+### T019 — AI Q&A: Ask AI chat + ai-qa Edge Function ✅
+- **Completed:** 2026-10-09
+- **Outcome:** A new "Ask AI" screen (`src/pages/AskAiPage.tsx`, reachable from More → Ask AI) — a lightweight chat UI (suggested questions, text input, in-memory message list, loading state) backed by a new Supabase Edge Function (`supabase/functions/ai-qa/index.ts`), deployed to the live project. The function takes a plain-text question, calls Google Gemini (free tier, Flash model, via its Interactions API) with 4 predefined tool declarations, executes the matching Supabase query whenever Gemini requests one, feeds the result back, and returns Gemini's final text answer to the client.
+- **Key implementation choices:**
+  - **LLM choice — Google Gemini, not Anthropic/OpenAI:** the user explicitly asked for a free option given how little this feature is used. Gemini's Flash models have a genuine free tier (not just trial credits) and support function/tool calling natively via the Interactions API (`POST https://generativelanguage.googleapis.com/v1beta/interactions`), so it fit both constraints.
+  - **Tool-calling only, never raw SQL** — matches the standing DECISIONS.md/ARCHITECTURE.md commitment. The LLM can only request one of 4 fixed functions (`get_spending_by_category`, `get_income_vs_expense`, `get_account_balances`, `get_budget_status`); each is a plain Supabase/PostgREST query (`.from(...).select(...)`, with aggregation done in JS), never a string of SQL the model wrote.
+  - **RLS + explicit user_id filter, belt and suspenders:** the Edge Function builds its Supabase client from the caller's own JWT (`Authorization` header passed straight through from the client request), so RLS scopes every query to that user automatically; every tool query also explicitly filters `.eq('user_id', userId)` on top of that, so a bug in RLS policy wouldn't silently leak another user's data through this new code path.
+  - **No persisted chat history** — each question is answered independently; the client keeps an in-memory list purely for display during the current screen visit. Deliberately small v1 scope (per the user's choice when this was scoped); nothing here touches Dexie, the outbox, or the offline sync layer at all — this is the one feature in the app that is online-only by design, consistent with PRD.md's original framing.
+  - Query logic was sanity-checked directly against the live Supabase project with equivalent read-only SQL (via the Supabase MCP tool) before being written into the Edge Function, confirming the join/group-by shapes (categories joined by `category_id`, budgets' current-month spend computed from `occurred_at >= start of this month`) match real data.
+- **Verified before touching the device:** `npx tsc -b --noEmit` and `npm run build` both clean in a disposable cloud-container build (the Edge Function itself is Deno, outside the frontend `tsc` project, same as other Supabase function code). Playwright confirmed: the Ask AI screen renders with suggested questions, clicking a suggestion or typing+sending both add a user chat bubble, and — with all Supabase network calls blocked (the standard safeguard for this project) — the resulting failed call surfaces as a visible error bubble rather than a silent hang or an uncaught page error.
+- **Deployed, but not yet fully live:** the `ai-qa` function is deployed and `ACTIVE` on the real Supabase project. It requires a `GEMINI_API_KEY` Edge Function secret, which must be entered directly in the Supabase dashboard (Project Settings → Edge Functions → Secrets) — the secret-creation tool available here only supports a user-facing dashboard entry flow and that flow didn't complete from this session, so the user needs to set it themselves with a free key from `aistudio.google.com/apikey`. Until that secret exists, asking a question returns a clear "GEMINI_API_KEY is not configured" error rather than failing silently.
+- **Files:** `src/pages/AskAiPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Ask AI" nav item/route), `supabase/functions/ai-qa/index.ts` (new).
+- **Branch:** `feature/t019-ai-qa`
 
 ### T018 — Native Google sign-in branching prep (Capacitor build) ✅
 - **Completed:** 2026-10-08
@@ -312,3 +326,4 @@ _Empty — T018 (native Google sign-in prep) just completed. Pick the next item 
 - 2026-10-08: T017 completed -- Reports screen (src/pages/ReportsPage.tsx): spending-by-category pie chart (period-selectable) + a fixed last-6-months income/expense bar chart, both split per currency. First use of a charting library (recharts) in the project. Verified in a disposable cloud container plus a full production `npm run build` on the device. Remaining backlog: native Google sign-in for the Capacitor build, or AI Q&A (v2) -- whichever the user picks next.
 - 2026-10-08: T017-fix completed -- Net Worth on the Dashboard was only summing accounts + goals, missing debts/receivables entirely even though ARCHITECTURE.md/DECISIONS.md define it as accounts + goals + receivables - debts. Found while syncing docs per the new CLAUDE.md "Documentation sync" rule, not reported by the user. Fixed DashboardPage.tsx to include remaining_amount across debts (subtracted) and receivables (added); card now shows whenever a goal, debt, or receivable exists. Verified in a disposable cloud container.
 - 2026-10-08: T018 completed — prepped native Google sign-in branching for the eventual Capacitor build. Added `@capacitor/core`, branched `SignInPage`'s sign-in handler on `Capacitor.isNativePlatform()`, and added a documented `signInWithGoogleNative()` stub (throws until a real native plugin exists). No Capacitor project/native platforms set up yet -- deliberately prep-only, per the user's scoping choice. Verified the web sign-in flow is unaffected (Playwright, disposable cloud-container build) before transferring to the device.
+- 2026-10-09: T019 completed — AI Q&A shipped as an "Ask AI" chat screen + a new `ai-qa` Supabase Edge Function, calling Google Gemini's free-tier Flash model via tool-calling (4 predefined query functions, never raw SQL from the LLM) -- the user explicitly chose Gemini for its free tier given low expected usage, and chose the small v1 scope (a few core questions, no persisted chat history) over a broader one. Deployed and ACTIVE on the live project, but needs the user to set a GEMINI_API_KEY secret directly in the Supabase dashboard before it actually answers anything (the secret-creation tool's dashboard-entry flow didn't complete from this session). This was the last item in the original PRD.md backlog -- Up Next is now empty.

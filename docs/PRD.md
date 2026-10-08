@@ -32,9 +32,9 @@ A personal finance tracker, built web-first and packaged into a native mobile ap
 11. **Dashboard** — balance overview, income vs. expense snapshot, optional "Net Worth" view
 12. **Google sign-in** (Supabase Auth)
 13. **Offline-first sync** (local store ↔ Supabase)
+14. **AI Q&A** — ask natural-language questions about your own spending, income, balances, and budgets; online-only, answered by Google Gemini (free tier) via tool-calling against predefined, safe query functions, never raw SQL (confirmed design and built, T019 — see ARCHITECTURE.md "AI Q&A")
 
 ## Deferred (v2 / nice-to-have, not yet scoped)
-- AI spending Q&A — confirmed direction: online-only, answers questions against the user's own data (see ARCHITECTURE.md for proposed approach)
 - Receipt photo scanning
 - Data export (CSV/PDF)
 - Notifications/reminders

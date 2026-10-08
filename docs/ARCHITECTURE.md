@@ -21,7 +21,7 @@
 | Local state/data | Dexie.js (IndexedDB wrapper) | Offline-first source of truth for the UI while on web; migrate to `@capacitor-community/sqlite` when wrapped, or keep Dexie in the WebView |
 | Backend | Supabase (Postgres + Auth + RLS + Realtime) | Relational schema fits financial data; RLS scopes data per user; Google OAuth built in |
 | Packaging | Capacitor | Converts the web app into iOS/Android shells |
-| AI | LLM via Supabase Edge Function (tool-calling pattern) | Keeps API keys server-side; online-only by design |
+| AI | Google Gemini (free tier, Flash model) via a Supabase Edge Function, tool-calling pattern | Keeps the API key server-side (Edge Function secret, never in client code); online-only by design; Gemini chosen for its genuine free tier given low expected usage (T019) |
 | Charts | recharts (v3) | Spending-by-category + income/expense trend reports (T017); React 19-compatible |
 | Capacitor core | `@capacitor/core` | Added T018 to make `Capacitor.isNativePlatform()` callable from `SignInPage`; no Android/iOS platforms or plugins installed yet — see "Google sign-in" below |
 
@@ -81,6 +81,12 @@ Confirmed. Displayed as an optional toggle view separate from the default wallet
 
 ### Recurring Transactions
 - A template (amount, category, account, frequency) that generates real transaction records on schedule
+
+## AI Q&A (T019)
+- `src/pages/AskAiPage.tsx` (More → Ask AI) is a lightweight chat UI — suggested questions, text input, in-memory message list (not persisted to Dexie, no chat history round-trips between questions). Calls `supabase.functions.invoke('ai-qa', { body: { question } })`.
+- `supabase/functions/ai-qa/index.ts` is the only part of this app that talks to an LLM. It takes the caller's JWT from the `Authorization` header, builds a Supabase client scoped to it (RLS applies automatically), and calls Google Gemini's Interactions API (`https://generativelanguage.googleapis.com/v1beta/interactions`) with 4 fixed tool declarations: `get_spending_by_category`, `get_income_vs_expense`, `get_account_balances`, `get_budget_status`.
+- **The LLM never generates SQL.** It can only request one of the 4 predefined tools; each tool is a plain `.from(...).select(...)` Supabase query (aggregated in JS), filtered by `user_id` explicitly on top of RLS. This is the concrete implementation of the "Tool-calling for AI, not raw SQL generation" pattern below.
+- Requires a `GEMINI_API_KEY` Edge Function secret (set directly in the Supabase dashboard — Project Settings → Edge Functions → Secrets — never committed to the repo or written into this doc).
 
 ## Google Sign-In: Web vs Native
 - Web: `supabase.auth.signInWithOAuth({ provider: 'google', ... })` — a browser redirect round-trip. Unchanged, in `src/pages/SignInPage.tsx`.
