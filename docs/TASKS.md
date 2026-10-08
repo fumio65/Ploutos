@@ -1,7 +1,7 @@
 # TASKS.md — Current Sprint
 
-**Phase:** 1 — Core UI
-**Sprint goal:** A usable app shell: navigate between accounts, transactions, and a dashboard, with real data flowing through Dexie + the T007 sync layer. ✅ Complete — Phase 0 (T001-T007) and Phase 1 Core UI (T008-T013) are both done and archived below.
+**Phase:** 2 — Extended Features
+**Sprint goal:** Category budgets, recurring transactions, debt/receivable tracking, reports. Phase 0 (T001-T007) and Phase 1 (T008-T013) archived below.
 **Started:** 2026-10-08
 **Branch naming convention:** `feature/t<id>-<short-slug>`
 
@@ -9,12 +9,11 @@
 
 ## Sprint Backlog
 
-_Empty — Phase 1 (Core UI) is complete. Pick the next item from "Up Next" below to open the next sprint (Goals UI / T011 is a natural next step, now that accounts + transactions exist to transfer between)._
+_Empty — T014 (Category budgets) just completed. Pick the next item from "Up Next" below._
 
 ---
 
 ## Up Next (not in this sprint)
-- Category budgets UI + logic
 - Recurring transactions engine
 - Debt/receivable tracking UI
 - Reports/charts
@@ -22,6 +21,20 @@ _Empty — Phase 1 (Core UI) is complete. Pick the next item from "Up Next" belo
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T014 — Category budgets UI ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/pages/BudgetsPage.tsx` (reachable from More → Budgets) — lists all expense categories with their monthly budget limit, a color-coded progress bar (green → amber → red as spending approaches/exceeds the limit), and current-month spending. Set/edit a budget by tapping the category; remove via swipe-to-delete.
+- **Key implementation choices:**
+  - Budget amounts are stored in the existing `budgets` table (from T002) with a unique constraint on `(user_id, category_id)` — one budget per category, no duplication possible. No schema migration was needed; the table and Dexie model were already in place.
+  - "Spent this month" is computed from expense `transactions` rows whose `occurred_at` falls in the current calendar month (same `startOfThisMonthIso()` logic as the Dashboard) — purely a local read, no server round-trip or derived column.
+  - Progress bar color is green (<80% spent), amber (80-100%), red (over budget) — the "over budget!" label makes the state obvious without relying on color alone.
+  - Currency for a new budget defaults to the user's first active account's currency, so the user doesn't have to pick it manually (matches how the rest of the app infers currency).
+  - Only expense categories are shown — income categories don't have meaningful monthly limits in this context.
+  - All data reads use `useLiveQuery` (same pattern as the T011 fix), so budgets and spending update automatically on any sync pull.
+- **Verified before touching the device:** full set/edit/remove flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Verified live-query reactivity by writing a transaction directly into IndexedDB and confirming the spending total updated with zero interaction.
+- **Files:** `src/pages/BudgetsPage.tsx` (new), `src/pages/MorePage.tsx` (new "Budgets" nav item), `src/navigation/Tabs.tsx` (new route).
+- **Branch:** `feature/t014-category-budgets`
 
 ### T011 — Goals UI ✅
 - **Completed:** 2026-10-08
@@ -214,3 +227,4 @@ _Empty — Phase 1 (Core UI) is complete. Pick the next item from "Up Next" belo
 - 2026-10-08: T012 completed — Transaction entry + combined list UI (src/pages/TransactionsPage.tsx), add-only (no edit/delete yet — the apply_transaction() Postgres trigger only fires on insert, so editing/deleting would desync account balances until a follow-up migration adds update/delete triggers). Verified in a disposable cloud container with all Supabase network calls blocked, since this is the first task whose test data touches the real financial account; confirmed working end-to-end (including live balance update after sync) on the real device by the user. T013 (dashboard) is next up and now unblocked.
 - 2026-10-08: T013 completed — Dashboard screen (src/pages/DashboardPage.tsx): total balance, this-month income/expense/net, optional net-worth card, per-account breakdown, all summed from already-synced local records (no client-side recomputation of server-derived values). Verified in a disposable cloud container with Supabase network calls blocked, confirmed on the real device by the user. Phase 1 (Core UI, T008-T013) is now fully complete — Sprint Backlog is empty; next up is picking the first item from "Up Next" (Goals UI / T011 is the natural next step).
 - 2026-10-08: T011 completed — Goals UI (src/pages/GoalsPage.tsx): create/edit goals, fund/withdraw via transfers, all server-derived balance same as T009/T012. User testing surfaced a real architectural bug — balances didn't update without a manual Sync — root-caused to pages only re-reading Dexie on their own writes, not on background sync pulls. Fixed by switching every data-reading page to Dexie's useLiveQuery (new dexie-react-hooks dependency), verified by writing directly into IndexedDB from outside the app and confirming instant UI updates with zero interaction. Confirmed fixed on the real device. Goals UI was the last item explicitly named as a natural next step; remaining backlog (budgets, recurring transactions, debt/receivable tracking, reports, native Google sign-in, AI Q&A) is open for whichever the user wants next.
+- 2026-10-08: T014 completed — Category budgets UI (src/pages/BudgetsPage.tsx): set/edit/remove monthly spending limits per expense category, with progress bars and over-budget detection. No schema migration needed. Verified in cloud container with Supabase blocked, confirmed on device. Phase 2 (Extended Features) started.
