@@ -26,8 +26,8 @@ Phase: **2 — Extended Features** (see TASKS.md for the active sprint, task IDs
 
 ## Known Open Questions / Blockers
 - **Goals data model — resolved 2026-10-08 (T001).** Confirmed as transfer-funded sub-accounts; see ARCHITECTURE.md "Goals" and DECISIONS.md.
-- **AI Q&A (T019) secret is set; live-testing fix (T019-fix) deployed, not yet confirmed.** The user set the `GEMINI_API_KEY` secret and began testing, hit a recurring Gemini 503 "high demand" error on `gemini-3.8-flash`; fixed with retry-with-backoff + a 3-model fallback chain, redeployed as function version 3. Waiting on the user to retry a question and confirm it actually answers correctly end to end before `feature/t019-ai-qa` is merged to `main`.
-- No other open blockers as of T019-fix. Repo is live at `github.com/fumio65/Ploutos`; see TASKS.md for the branch naming convention (`feature/t<id>-<slug>`) and current state.
+- **AI Q&A (T019) is confirmed working end to end.** The 503 retry/fallback fix and a follow-up fix for an unreadable answer-bubble text color are both confirmed by the user; `feature/t019-ai-qa` is ready to merge into `main`. A ~50s response time when the first-choice model is overloaded is expected (not a bug) — see TASKS.md's T019-fix entry if it becomes worth tuning.
+- No other open blockers. Repo is live at `github.com/fumio65/Ploutos`; see TASKS.md for the branch naming convention (`feature/t<id>-<slug>`) and current state.
 
 ## Source Material
 This planning structure (PRD/ARCHITECTURE/CONTEXT/TASKS split) follows a document the user supplied: "Claude System or Mobile Project Document for Optimizing Usage and Limit" — a token-efficiency-oriented planning convention (concise docs, reference by file/section rather than re-pasting content, update docs as the project evolves rather than accumulating stale info).
