@@ -9,13 +9,6 @@
 
 ## Sprint Backlog
 
-### T012 — Transaction entry + list UI
-- [ ] Not started
-- **Depends on:** T009, T010
-- **Context:** Add/edit income or expense transactions (amount, date, account, category, note); list view per account and a combined recent-activity list. Transaction writes must update the account balance via the existing Postgres trigger (`apply_transaction()`) — client side just inserts the transaction row and lets sync carry it; Dexie-side balance display should re-derive from local account record after sync, not be computed client-side, to avoid drift from the server-authoritative trigger logic.
-- **Acceptance criteria:** Add a transaction offline; account balance updates after sync; list shows correct amount/date/category/account.
-- **Expected branch:** `feature/t012-transactions-ui`
-
 ### T013 — Dashboard screen
 - [ ] Not started
 - **Depends on:** T009, T012
@@ -35,6 +28,18 @@
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T012 — Transaction entry + list UI ✅
+- **Completed:** 2026-10-08
+- **Outcome:** `src/pages/TransactionsPage.tsx` — add income/expense transactions (amount, date, account, category, note) and view them in one combined list with an account filter dropdown (doubles as the "per account" view from the acceptance criteria, rather than a separate screen). Reusing one filterable list avoided building and maintaining two near-identical views.
+- **Key implementation choices:**
+  - Account balance is never computed client-side. `saveTransaction()` just inserts the transaction row into Dexie and queues it; the existing Postgres `apply_transaction()` trigger (from T002) is what actually moves the account's balance, on push. Confirmed by reading the trigger SQL directly: it only fires `after insert`, not update/delete — so editing or deleting a transaction's amount would silently desync the balance. Scoped T012 to add-only for that reason (no edit/delete UI) rather than ship a balance-drift bug; a future migration adding `after update/delete` triggers is a prerequisite for editable transactions.
+  - Calls `syncNow()` (from the shared `SyncProvider`) right after a transaction is queued, instead of waiting for the next `online` event, so the account's balance update round-trips promptly for the person to see — best-effort; if offline it just queues normally for the next automatic sync.
+  - Date input is a native `type="date"` field, anchored to noon local time before converting to the `timestamptz` the schema expects (`occurred_at`), so the picked date can't shift a day in either direction during UTC conversion.
+  - Category options in the add-transaction form filter to the selected Expense/Income segment; switching the segment drops a now-mismatched category selection back to the first matching one.
+- **Verified before touching the device:** full add-transaction flow (expense and income, both with account/category pickers) driven by Playwright in the disposable cloud container first, with a temporary fake-session bypass and **all requests to the real Supabase project blocked at the network layer** (`page.route(...).abort()`) — this task's data model touches the user's real financial account, so no test writes were allowed to reach it even accidentally; verification covered local Dexie behavior only (form → list rendering, category filtering by kind, account filter). Confirmed working on the real device by the user afterward, including the live balance update after sync.
+- **Files:** `src/pages/TransactionsPage.tsx` (new), `src/navigation/Tabs.tsx` (pass `session` through to the route)
+- **Branch:** `feature/t012-transactions-ui`
 
 ### T010 — Categories seed data + management UI ✅
 - **Completed:** 2026-10-08
@@ -184,3 +189,4 @@
 - 2026-10-08: T008 completed — real four-tab navigation shell (Dashboard/Accounts/Transactions/More) replacing the demo App.tsx, built on react-router-dom v6 syntax (confirmed the older Redirect/children-based Route API from some Ionic examples doesn't exist in v6 — verified empirically with Playwright in a disposable cloud-container build before touching the device, not just by reading docs). Sync listeners now live in a shared SyncProvider/useSync() context instead of per-page. T009 (accounts list UI) is next up.
 - 2026-10-08: T009 completed — Accounts CRUD UI (src/pages/AccountsPage.tsx): create/edit/archive/restore, all wired through the existing queueChange/sync pattern with no new sync logic needed. Found and fixed a runtime-only Dexie SchemaError (orderBy on a non-indexed field) that tsc couldn't have caught — caught because the page was actually run with Playwright before being sent to the device, not just type-checked. Balance is deliberately not editable after account creation, since it becomes server-derived once T012 lands. T010 (categories) is next up.
 - 2026-10-08: T010 completed — default category seeding (13 categories, once per sign-in if none exist) and a Categories management screen (add/edit/swipe-delete), both verified with Playwright before touching the device. T012 (transaction entry + list) is next up and is now unblocked (its other dependency, T009, was already done).
+- 2026-10-08: T012 completed — Transaction entry + combined list UI (src/pages/TransactionsPage.tsx), add-only (no edit/delete yet — the apply_transaction() Postgres trigger only fires on insert, so editing/deleting would desync account balances until a follow-up migration adds update/delete triggers). Verified in a disposable cloud container with all Supabase network calls blocked, since this is the first task whose test data touches the real financial account; confirmed working end-to-end (including live balance update after sync) on the real device by the user. T013 (dashboard) is next up and now unblocked.
