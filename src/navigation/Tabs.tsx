@@ -1,0 +1,43 @@
+import type { Session } from '@supabase/supabase-js'
+import { IonIcon, IonLabel, IonRouterOutlet, IonTabBar, IonTabButton, IonTabs } from '@ionic/react'
+import { ellipsisHorizontalOutline, homeOutline, swapHorizontalOutline, walletOutline } from 'ionicons/icons'
+import { Navigate, Route } from 'react-router-dom'
+import { AccountsPage } from '../pages/AccountsPage'
+import { DashboardPage } from '../pages/DashboardPage'
+import { DevSyncTestPage } from '../pages/DevSyncTestPage'
+import { MorePage } from '../pages/MorePage'
+import { TransactionsPage } from '../pages/TransactionsPage'
+
+export function Tabs({ session }: { session: Session }) {
+  return (
+    <IonTabs>
+      <IonRouterOutlet>
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="more" element={<MorePage session={session} />} />
+        <Route path="more/dev-sync-test" element={<DevSyncTestPage session={session} />} />
+        <Route path="" element={<Navigate to="dashboard" replace />} />
+      </IonRouterOutlet>
+
+      <IonTabBar slot="bottom">
+        <IonTabButton tab="dashboard" href="/tabs/dashboard">
+          <IonIcon icon={homeOutline} />
+          <IonLabel>Dashboard</IonLabel>
+        </IonTabButton>
+        <IonTabButton tab="accounts" href="/tabs/accounts">
+          <IonIcon icon={walletOutline} />
+          <IonLabel>Accounts</IonLabel>
+        </IonTabButton>
+        <IonTabButton tab="transactions" href="/tabs/transactions">
+          <IonIcon icon={swapHorizontalOutline} />
+          <IonLabel>Transactions</IonLabel>
+        </IonTabButton>
+        <IonTabButton tab="more" href="/tabs/more">
+          <IonIcon icon={ellipsisHorizontalOutline} />
+          <IonLabel>More</IonLabel>
+        </IonTabButton>
+      </IonTabBar>
+    </IonTabs>
+  )
+}

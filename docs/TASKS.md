@@ -1,7 +1,7 @@
 # TASKS.md — Current Sprint
 
-**Phase:** 0 — Planning & Foundation
-**Sprint goal:** Lock the data model and get a running, empty-but-wired project (web app ↔ Supabase ↔ local store), before any feature UI is built.
+**Phase:** 1 — Core UI
+**Sprint goal:** A usable app shell: navigate between accounts, transactions, and a dashboard, with real data flowing through Dexie + the T007 sync layer. Phase 0 (T001-T007, data model + sync) is complete and archived below.
 **Started:** 2026-10-08
 **Branch naming convention:** `feature/t<id>-<short-slug>`
 
@@ -9,21 +9,58 @@
 
 ## Sprint Backlog
 
-_Sprint backlog is empty — all planned Phase 0 tasks (T001-T007) are complete. See "Up Next" below for the following sprint's candidates._
+### T009 — Accounts list + create/edit UI
+- [ ] Not started
+- **Depends on:** T008
+- **Context:** Real CRUD screen for `accounts` (list with balances, add/edit form: name, type, currency, icon/color), writing through Dexie + `queueChange('accounts', id)` exactly like the sync-test harness does, so it's already sync-correct.
+- **Acceptance criteria:** Create/edit/archive an account from the UI; balance shown matches Dexie; survives a page reload; syncs to Supabase.
+- **Expected branch:** `feature/t009-accounts-ui`
+
+### T010 — Categories seed data + management UI
+- [ ] Not started
+- **Depends on:** T008
+- **Context:** Seed a sensible default category set (income + expense) on first sign-in if none exist yet, plus a simple list/add/edit screen for user-defined categories. Needed before T012 (transactions need a category to pick from).
+- **Acceptance criteria:** New user gets default categories automatically; can add/edit/delete a custom category.
+- **Expected branch:** `feature/t010-categories-ui`
+
+### T012 — Transaction entry + list UI
+- [ ] Not started
+- **Depends on:** T009, T010
+- **Context:** Add/edit income or expense transactions (amount, date, account, category, note); list view per account and a combined recent-activity list. Transaction writes must update the account balance via the existing Postgres trigger (`apply_transaction()`) — client side just inserts the transaction row and lets sync carry it; Dexie-side balance display should re-derive from local account record after sync, not be computed client-side, to avoid drift from the server-authoritative trigger logic.
+- **Acceptance criteria:** Add a transaction offline; account balance updates after sync; list shows correct amount/date/category/account.
+- **Expected branch:** `feature/t012-transactions-ui`
+
+### T013 — Dashboard screen
+- [ ] Not started
+- **Depends on:** T009, T012
+- **Context:** Balance overview across accounts, income vs. expense snapshot (e.g. this month), optional Net Worth view (accounts + goals balances combined, per the T001 goals design).
+- **Acceptance criteria:** Numbers shown reconcile with the underlying transaction/account data (no orphaned numbers, per PRD.md's success metric).
+- **Expected branch:** `feature/t013-dashboard`
 
 ---
 
 ## Up Next (not in this sprint)
-- Core UI: transaction entry, account list, dashboard
 - Category budgets UI + logic
 - Recurring transactions engine
 - Debt/receivable tracking UI
-- Goals UI (T011 — unblocked now that T001 is resolved)
+- Goals UI (T011 — unblocked now that T001 is resolved; reserved ID, deliberately not in this sprint)
 - Reports/charts
 - Native Google sign-in flow for Capacitor build
 - AI Q&A: Edge Function + tool-calling query layer (v2)
 
 ## Archived (Completed)
+
+### T008 — App navigation shell (Ionic tabs) ✅
+- **Completed:** 2026-10-08
+- **Outcome:** Real navigation shell replacing the T004-T007 demo `App.tsx`. Four-tab `IonTabs`/`IonRouterOutlet` shell (Dashboard, Accounts, Transactions, More) under `/tabs/*`, with the sign-in gate (`SignInPage`) staying in front of it in `App.tsx` exactly as before. The T007 "Sync layer test" harness was moved to `pages/DevSyncTestPage.tsx`, reachable via More → "Dev: Sync layer test" at `/tabs/more/dev-sync-test`, rather than deleted.
+- **Key implementation choices:**
+  - `react-router-dom` v6 syntax throughout (`<Route path="..." element={<X/>} />`, `<Navigate to="..." replace />`) — the older `Redirect`/children-based `<Route>` API shown in some still-circulating Ionic examples doesn't exist in v6 (confirmed: `react-router-dom` v6.30 exports `Navigate`, not `Redirect`). `Tabs.tsx` uses relative child paths (`"dashboard"`, `"more/dev-sync-test"`) under a parent `<Route path="/tabs/*">`, which is the correct RRv6 nested-routing pattern and works cleanly with Ionic 9's `IonRouterOutlet`/`IonTabs`.
+  - Added `src/lib/syncContext.tsx` (`SyncProvider`/`useSync()`): the sync listeners (`startSyncListeners`) now start once for the whole authenticated app shell (mounted in `AppShell`), not per-page. `DevSyncTestPage` reads `syncResult`/`syncing`/`syncNow` from this context instead of managing its own sync lifecycle — avoids re-arming listeners every time that page is opened, and gives any future page (e.g. a "last synced" indicator) the same shared state.
+  - `MorePage` uses `useNavigate()` (RRv6), not `useHistory()` (RRv5) — another API that changed between versions and needs to be gotten right per-component.
+- **Verified before touching the device:** built a temporary fake-session bypass in the fast cloud container and drove the real browser with Playwright (not just `tsc`) — clicked through all four tabs, into the nested `/tabs/more/dev-sync-test` route and back via the Ionic back button, confirmed URLs and rendered content matched expectations at each step, and confirmed zero console/page errors. Removed the temporary bypass before transferring anything to the device. `tsc -b --noEmit` also clean both in the cloud container and on the user's machine.
+- **Acceptance criteria:** ✅ Met — confirmed by the user on their machine: tab bar renders with all four tabs, navigation works, sync-test harness works from its new location under More.
+- **Files:** `src/App.tsx` (now just the auth gate), `src/AppShell.tsx` (new), `src/navigation/Tabs.tsx` (new), `src/pages/{SignInPage,DashboardPage,AccountsPage,TransactionsPage,MorePage,DevSyncTestPage}.tsx` (new), `src/lib/syncContext.tsx` (new).
+- **Expected branch:** `feature/t008-nav-shell`
 
 ### T007 — Sync layer (outbox + watermark) ✅
 - **Completed:** 2026-10-08
@@ -134,3 +171,4 @@ _Sprint backlog is empty — all planned Phase 0 tasks (T001-T007) are complete.
 - 2026-10-08: Project pushed to GitHub (`github.com/fumio65/Ploutos`, `main`, commit `d4dd226`) — docs, schema/RLS migrations, and the full scaffold. Authored as the user (`fumio65`), no Claude attribution. `node_modules` and `.env.local` correctly excluded via `.gitignore`.
 - 2026-10-08: T006 completed — `src/lib/db.ts` defines the Dexie local schema, a 1:1 field match with all nine Postgres tables from T002. Type-checked clean in a separate build and on the user's machine after `npm install dexie`; no bridge/install issues since dexie is pure JS with no native bindings. T007 (sync layer) is now fully unblocked — both its dependencies (T005, T006) are done.
 - 2026-10-08: T007 completed — sync layer (`src/lib/sync.ts`) verified end to end against the live Supabase project. Found and fixed a real bug during verification: client/server clock drift was breaking last-write-wins (a local edit's browser-stamped timestamp was being compared directly against Postgres's server-stamped one with no offset correction). Added a `server_time()` RPC + `syncClockOffset()`/`nowIso()` in `sync.ts` to correct for this, plus a `runSyncExclusive()` guard against overlapping sync runs. Both conflict directions (local-wins, remote-wins) now reproduce cleanly and repeatably. All of Phase 0 (T001-T007) is now complete — sprint backlog is empty; next up is picking the first item from "Up Next" (Core UI is the natural starting point).
+- 2026-10-08: T008 completed — real four-tab navigation shell (Dashboard/Accounts/Transactions/More) replacing the demo App.tsx, built on react-router-dom v6 syntax (confirmed the older Redirect/children-based Route API from some Ionic examples doesn't exist in v6 — verified empirically with Playwright in a disposable cloud-container build before touching the device, not just by reading docs). Sync listeners now live in a shared SyncProvider/useSync() context instead of per-page. T009 (accounts list UI) is next up.
