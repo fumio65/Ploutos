@@ -1,0 +1,35 @@
+/* Tailwind v4: import theme + utilities only (no preflight), so Tailwind's
+   base reset doesn't fight Ionic's own base/normalize styles. */
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities);
+
+/* Ionic core (required) */
+@import '@ionic/react/css/core.css';
+
+/* Ionic structural/basic CSS, in the order Ionic recommends */
+@import '@ionic/react/css/normalize.css';
+@import '@ionic/react/css/structure.css';
+@import '@ionic/react/css/typography.css';
+
+/* Optional Ionic CSS utils */
+@import '@ionic/react/css/padding.css';
+@import '@ionic/react/css/float-elements.css';
+@import '@ionic/react/css/text-alignment.css';
+@import '@ionic/react/css/text-transformation.css';
+@import '@ionic/react/css/flex-utils.css';
+
+/* Ionic dark mode (system-preference based) */
+@import '@ionic/react/css/palettes/dark.system.css';
+
+/* Ploutos brand tokens (Modern Minimal theme — see docs/ARCHITECTURE.md) */
+@theme {
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --color-navy: #1e2a5a;
+  --color-emerald: #10b981;
+  --color-mist: #f5f6fa;
+  --color-ink: #0e1330;
+}
+
+body {
+  font-family: var(--font-sans);
+}
