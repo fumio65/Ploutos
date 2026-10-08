@@ -22,6 +22,7 @@
 | Backend | Supabase (Postgres + Auth + RLS + Realtime) | Relational schema fits financial data; RLS scopes data per user; Google OAuth built in |
 | Packaging | Capacitor | Converts the web app into iOS/Android shells |
 | AI | LLM via Supabase Edge Function (tool-calling pattern) | Keeps API keys server-side; online-only by design |
+| Charts | recharts (v3) | Spending-by-category + income/expense trend reports (T017); React 19-compatible |
 
 ## System Overview (text diagram)
 
@@ -84,6 +85,7 @@ Confirmed. Displayed as an optional toggle view separate from the default wallet
 - **Feature-based architecture**: organize code by feature (accounts, transactions, budgets, goals, debts, ai-insights) rather than by technical layer
 - **Local-first data flow**: UI reads/writes local store only; sync is a background concern, never blocking user actions
 - **Tool-calling for AI**, not raw SQL generation: the LLM calls predefined, safe query functions (e.g. `get_spending_by_category(start, end)`) rather than generating arbitrary SQL — avoids injection/correctness risk against financial data
+- **Multi-currency aggregates are always grouped by currency, never flattened.** Any total spanning records that could be in different currencies (Dashboard's balance/net-worth/income-expense cards, Reports' category breakdown and trend charts) groups by `currency` first and renders one figure/chart per currency rather than silently adding, say, PHP and USD together.
 
 ## Engineering Standards (carried from source planning doc)
 - Feature-based architecture
@@ -102,4 +104,10 @@ Confirmed. Displayed as an optional toggle view separate from the default wallet
 - Multi-currency Net Worth conversion — deferred to v2, no exchange-rate infra in v1
 
 ## Schema & Policies
-Drafted in: `schema.sql` (T002) and its accompanying RLS migration (T003) — not yet created. Once drafted, link or summarize the table list here rather than duplicating the full SQL in this file (keep this doc readable; the migration file is the source of truth).
+Applied to the live Supabase project (`lbtgbblmvxcynbwkefbx`). Source of truth is `supabase/migrations/`, not this file:
+- `0001_schema.sql` (T002) — the nine v1 tables (`categories`, `accounts`, `goals`, `transactions`, `transfers`, `debts`, `receivables`, `budgets`, `recurring_rules`) plus the balance-maintaining triggers (`apply_transaction()`, `apply_transfer()`, `apply_debt_receivable_repayment()`).
+- `0002_rls_policies.sql` (T003) — per-user select/insert/update/delete policies on every table.
+- `0003_fix_function_search_path.sql` (T005) — pins `search_path` on the trigger functions (security-advisor fix).
+- `0004_server_time_rpc.sql` (T007) — `server_time()` RPC, used by the sync layer's clock-drift correction.
+
+See `docs/TASKS.md` (T002/T003/T005/T007) for the story behind each migration; keep this list in sync whenever a new migration is added rather than letting it go stale again.

@@ -1,7 +1,7 @@
 # CONTEXT.md — Ploutos
 
 ## Project Status
-Phase: **0 — Planning & Foundation** (see TASKS.md for the active sprint and task IDs). Feature set and schema design in progress. No code written yet. Conversion to native app (via Capacitor) is a planned future phase, not current work.
+Phase: **2 — Extended Features** (see TASKS.md for the active sprint, task IDs, and the full Sprint Log). Phase 0 (foundation: schema, RLS, sync layer) and Phase 1 (core UI: accounts, transactions, dashboard, goals) are both complete and live against a real Supabase project; Phase 2 has shipped category budgets, recurring transactions, debt/receivable tracking, and reports/charts. Conversion to native app (via Capacitor) remains a planned future phase, not current work.
 
 ## Terminology
 - **Ploutos** — the project/app name, after the Greek god of wealth (see PRD.md "Name & Story").
@@ -25,8 +25,8 @@ Phase: **0 — Planning & Foundation** (see TASKS.md for the active sprint and t
 - Dexie.js docs: https://dexie.org
 
 ## Known Open Questions / Blockers
-- **Goals data model — resolved 2026-10-08 (T001).** Confirmed as transfer-funded sub-accounts; see ARCHITECTURE.md "Goals" and DECISIONS.md. No longer a blocker — T002 (schema) is next up.
-- No repo/codebase exists yet — this is pre-code planning. No git branches created; see TASKS.md for the branch naming convention (`feature/t<id>-<slug>`) once work starts.
+- **Goals data model — resolved 2026-10-08 (T001).** Confirmed as transfer-funded sub-accounts; see ARCHITECTURE.md "Goals" and DECISIONS.md.
+- No open blockers as of T017. Repo is live at `github.com/fumio65/Ploutos`; see TASKS.md for the branch naming convention (`feature/t<id>-<slug>`) and current state.
 
 ## Source Material
 This planning structure (PRD/ARCHITECTURE/CONTEXT/TASKS split) follows a document the user supplied: "Claude System or Mobile Project Document for Optimizing Usage and Limit" — a token-efficiency-oriented planning convention (concise docs, reference by file/section rather than re-pasting content, update docs as the project evolves rather than accumulating stale info).

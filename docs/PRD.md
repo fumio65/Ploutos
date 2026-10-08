@@ -27,7 +27,7 @@ A personal finance tracker, built web-first and packaged into a native mobile ap
 6. **Recurring transactions** — auto-repeating income/expense entries
 7. **Debt tracker** — money the user owes, linked to repayment transactions
 8. **Receivables** — money owed to the user, linked to incoming payment transactions
-9. **Personal goals** — target amount + deadline; funded via transfers from accounts (provisional design, pending T001 — see ARCHITECTURE.md and TASKS.md)
+9. **Personal goals** — target amount + deadline; funded via transfers from accounts (confirmed design, T001; built, T011 — see ARCHITECTURE.md "Goals")
 10. **Reports/charts** — spending by category, trends over time
 11. **Dashboard** — balance overview, income vs. expense snapshot, optional "Net Worth" view
 12. **Google sign-in** (Supabase Auth)

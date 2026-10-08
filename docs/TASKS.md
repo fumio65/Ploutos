@@ -9,7 +9,7 @@
 
 ## Sprint Backlog
 
-_Empty — T017 (Reports/charts) just completed. Pick the next item from "Up Next" below._
+_Empty — T017 (Reports/charts) and a Net-Worth fix just completed. Pick the next item from "Up Next" below._
 
 ---
 
@@ -30,6 +30,28 @@ _Empty — T017 (Reports/charts) just completed. Pick the next item from "Up Nex
 - **Verified before touching the device:** full create/pay/collect flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Created a debt and a receivable, recorded a partial payment and a full collection, confirmed each landed as the correct transaction type linked via `debt_id`/`receivable_id`; since the trigger itself can't run with Supabase blocked, directly wrote the trigger's expected post-sync state into Dexie and confirmed the list reacted live (remaining amount updated, then the debt moved from Active to Settled with zero interaction).
 - **Files:** `src/pages/DebtsPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Debts" nav item/route).
 - **Branch:** `feature/t016-debt-receivable-tracking`
+
+### T017-fix — Net Worth was missing debts/receivables ✅
+- **Completed:** 2026-10-08
+- **Context:** discovered while syncing docs for T016-fix/T017 against the new
+  "Documentation sync" rule in `CLAUDE.md` — `ARCHITECTURE.md`/`DECISIONS.md`
+  both define Net Worth as `accounts + goals + receivables - debts`, but
+  `DashboardPage.tsx` (T013) only ever summed accounts + goals. Debts and
+  Receivables (T016) shipped after the Dashboard did and were never wired
+  into its Net Worth card — a real calculation bug, not just a stale doc.
+- **Outcome:** Net Worth now also sums `remaining_amount` across debts
+  (subtracted) and receivables (added), alongside account and goal
+  balances. The card's subtitle lists exactly which pieces are contributing
+  (e.g. "Accounts + 1 goal + 1 receivable − 1 debt"). The card now renders
+  whenever it could actually differ from the Total Balance card — a goal,
+  debt, *or* receivable exists — rather than requiring a goal specifically.
+- **Verified before touching the device:** Playwright in a disposable cloud
+  container with Supabase network calls blocked — confirmed no Net Worth
+  card renders with zero goals/debts/receivables; created a debt (5000) and
+  a receivable (1500) against a 50000 account and confirmed Net Worth shows
+  46,500 (50000 + 1500 − 5000) with the correct subtitle.
+- **Files:** `src/pages/DashboardPage.tsx`.
+- **Branch:** `feature/t017-reports-charts` (same branch, found while finishing T017's doc sync).
 
 ### T017 — Reports/charts ✅
 - **Completed:** 2026-10-08
@@ -277,3 +299,4 @@ _Empty — T017 (Reports/charts) just completed. Pick the next item from "Up Nex
 - 2026-10-08: T016 completed — Debt/receivable tracking UI (src/pages/DebtsPage.tsx): I Owe / Owed to Me segments with Active/Settled sub-segments, create trackers, and a Pay/Collect action that records a real transaction (linked via debt_id/receivable_id) rather than touching remaining_amount directly -- the existing apply_debt_receivable_repayment() trigger from T002 does that on push, same server-authoritative pattern as account/goal balances. Verified in a disposable cloud container before touching the device. No schema migration needed. Next up: reports/charts, native Google sign-in, or AI Q&A -- whichever the user picks.
 - 2026-10-08: T016-fix completed -- Transactions list was showing debt/receivable repayments as a bare "Uncategorized" (correct, since those deliberately have no category_id, but confusing to read). User reported it after testing T016 on device; chose "show a smarter label" when asked. TransactionsPage.tsx now shows "Debt repayment: <counterparty>" / "Collected: <counterparty>" for those, falling back to "Uncategorized" only otherwise. Verified in a disposable cloud container, committed on the same T016 branch.
 - 2026-10-08: T017 completed -- Reports screen (src/pages/ReportsPage.tsx): spending-by-category pie chart (period-selectable) + a fixed last-6-months income/expense bar chart, both split per currency. First use of a charting library (recharts) in the project. Verified in a disposable cloud container plus a full production `npm run build` on the device. Remaining backlog: native Google sign-in for the Capacitor build, or AI Q&A (v2) -- whichever the user picks next.
+- 2026-10-08: T017-fix completed -- Net Worth on the Dashboard was only summing accounts + goals, missing debts/receivables entirely even though ARCHITECTURE.md/DECISIONS.md define it as accounts + goals + receivables - debts. Found while syncing docs per the new CLAUDE.md "Documentation sync" rule, not reported by the user. Fixed DashboardPage.tsx to include remaining_amount across debts (subtracted) and receivables (added); card now shows whenever a goal, debt, or receivable exists. Verified in a disposable cloud container.
