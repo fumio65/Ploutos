@@ -9,7 +9,7 @@
 
 ## Sprint Backlog
 
-_Empty — T016 (Debt/receivable tracking UI) just completed. Pick the next item from "Up Next" below._
+_Empty — T016 (Debt/receivable tracking UI) and its Transactions-label fix just completed. Pick the next item from "Up Next" below._
 
 ---
 
@@ -31,6 +31,14 @@ _Empty — T016 (Debt/receivable tracking UI) just completed. Pick the next item
 - **Verified before touching the device:** full create/pay/collect flow driven by Playwright in a disposable cloud container with Supabase network calls blocked. Created a debt and a receivable, recorded a partial payment and a full collection, confirmed each landed as the correct transaction type linked via `debt_id`/`receivable_id`; since the trigger itself can't run with Supabase blocked, directly wrote the trigger's expected post-sync state into Dexie and confirmed the list reacted live (remaining amount updated, then the debt moved from Active to Settled with zero interaction).
 - **Files:** `src/pages/DebtsPage.tsx` (new), `src/pages/MorePage.tsx` + `src/navigation/Tabs.tsx` (new "Debts" nav item/route).
 - **Branch:** `feature/t016-debt-receivable-tracking`
+
+### T016-fix — Smarter Transactions label for debt/receivable repayments ✅
+- **Completed:** 2026-10-08
+- **Context:** after hands-on testing T016 on device, user reported debt repayments and receivable collections showed up in the Transactions list as a bare "Uncategorized" — correct, since those transactions intentionally have no `category_id` (principal repayment isn't discretionary spending), but confusing to read. Asked the user how to fix it; chose "Show a smarter label."
+- **Outcome:** `TransactionsPage.tsx`'s `transactionLabel()` now shows the category name when one is set, else `"Debt repayment: <counterparty>"` for a `debt_id`-linked transaction, else `"Collected: <counterparty>"` for a `receivable_id`-linked one, falling back to `"Uncategorized"` only when none of those apply.
+- **Verified before touching the device:** Playwright in a disposable cloud container — created a debt and a receivable, recorded a partial payment and a full collection, confirmed the Transactions list showed "Debt repayment: Credit Card" and "Collected: Juan" with no "Uncategorized" label on either.
+- **Files:** `src/pages/TransactionsPage.tsx`.
+- **Branch:** `feature/t016-debt-receivable-tracking` (same branch as T016, since this fixes that feature's own UX gap).
 
 ### T015 — Recurring transactions engine ✅
 - **Completed:** 2026-10-08
@@ -255,3 +263,4 @@ _Empty — T016 (Debt/receivable tracking UI) just completed. Pick the next item
 - 2026-10-08: T014 completed — Category budgets UI (src/pages/BudgetsPage.tsx): set/edit/remove monthly spending limits per expense category, with progress bars and over-budget detection. No schema migration needed. Verified in cloud container with Supabase blocked, confirmed on device. Phase 2 (Extended Features) started.
 - 2026-10-08: T015 completed — Recurring transactions engine (src/lib/recurring.ts) + Recurring UI (src/pages/RecurringPage.tsx): a client-driven scheduler that catches up any missed occurrences of an active rule on app start, inserting real transactions through the same apply_transaction() trigger path as a manual entry. Verified catch-up (2 missed months -> 3 transactions), idempotent re-runs, and pause/delete all working in a disposable cloud container before touching the device. No schema migration needed (recurring_rules already existed from T002/T006). Phase 2 continues; next up is whichever the user picks from the remaining backlog (debt/receivable tracking, reports/charts, native Google sign-in, AI Q&A).
 - 2026-10-08: T016 completed — Debt/receivable tracking UI (src/pages/DebtsPage.tsx): I Owe / Owed to Me segments with Active/Settled sub-segments, create trackers, and a Pay/Collect action that records a real transaction (linked via debt_id/receivable_id) rather than touching remaining_amount directly -- the existing apply_debt_receivable_repayment() trigger from T002 does that on push, same server-authoritative pattern as account/goal balances. Verified in a disposable cloud container before touching the device. No schema migration needed. Next up: reports/charts, native Google sign-in, or AI Q&A -- whichever the user picks.
+- 2026-10-08: T016-fix completed -- Transactions list was showing debt/receivable repayments as a bare "Uncategorized" (correct, since those deliberately have no category_id, but confusing to read). User reported it after testing T016 on device; chose "show a smarter label" when asked. TransactionsPage.tsx now shows "Debt repayment: <counterparty>" / "Collected: <counterparty>" for those, falling back to "Uncategorized" only otherwise. Verified in a disposable cloud container, committed on the same T016 branch.
